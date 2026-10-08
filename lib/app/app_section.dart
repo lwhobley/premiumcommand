@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../core/permissions/app_permission.dart';
 import '../features/command_center/command_center_screen.dart';
+import '../features/dispatch/presentation/dispatch_screen.dart';
+import '../features/dispatch/presentation/my_shift_screen.dart';
 import '../features/events/presentation/event_calendar_screen.dart';
 import '../features/events/presentation/event_list_screen.dart';
 import 'placeholder_screen.dart';
@@ -124,6 +126,8 @@ enum AppSection {
       AppSection.commandCenter => const CommandCenterScreen(),
       AppSection.eventCalendar => const EventCalendarScreen(),
       AppSection.eventWorkspace => const EventListScreen(),
+      AppSection.liveDispatch => const DispatchScreen(),
+      AppSection.myShift => const MyShiftScreen(),
       _ => PlaceholderScreen(title: label, plannedPhase: phase),
     };
   }

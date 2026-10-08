@@ -13,8 +13,10 @@ Phase 1 (foundation) is in place. Later phases are listed as placeholders in the
 | Event lifecycle (client rules + `transition_event` database function) | Built |
 | Readiness from real task records (per department and overall) | Built |
 | Command Center dashboard | Built (Phase 1 subset) |
-| Database schema, RLS, lifecycle function | Migration `supabase/migrations/0001_foundation.sql` |
-| BEOs, suites, dispatch, staffing, inspections, communications, closeout | Not built (Phases 2–4) |
+| Live service dispatch (create, assign, accept, start, complete, block, reject, cancel; escalation) | Built |
+| My Shift (requests named to you or your departments) | Built |
+| Database schema, RLS, lifecycle function | Migrations `0001_foundation.sql`, `0002_service_dispatch.sql` |
+| BEOs, suites, staffing, event task generation, inspections, communications, closeout | Not built (Phases 2–4) |
 | Offline sync, push notifications, PDF export | Not built |
 
 ## Run
