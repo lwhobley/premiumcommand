@@ -40,6 +40,7 @@ workflows:
       cocoapods: default
       groups:
         - cutx_supabase
+        - cutx_ios_signing   # CERTIFICATE_PRIVATE_KEY: key matching the Apple Distribution certificate
     scripts:
       - name: Get packages
         script: flutter pub get
