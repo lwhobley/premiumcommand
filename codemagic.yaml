@@ -33,9 +33,8 @@ workflows:
     integrations:
       app_store_connect: Venue Wrangler Wine
     environment:
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: app.loungeability.cutxPremiumCommand
+      vars:
+        BUNDLE_ID: "app.loungeability.cutxPremiumCommand"
       flutter: stable
       xcode: latest
       cocoapods: default
@@ -44,7 +43,13 @@ workflows:
     scripts:
       - name: Get packages
         script: flutter pub get
-      - name: Set up code signing
+      - name: Set up keychain
+        script: keychain initialize
+      - name: Fetch or create App Store signing files
+        script: app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
+      - name: Add certificates to keychain
+        script: keychain add-certificates
+      - name: Set up code signing for the Xcode project
         script: xcode-project use-profiles
       - name: Install CocoaPods
         script: find . -name "Podfile" -execdir pod install \;
@@ -55,7 +60,7 @@ workflows:
       - name: Build iOS
         script: |
           flutter build ipa --release \
-            --export-method app-store \
+            --export-options-plist=/Users/builder/export_options.plist \
             --dart-define=SUPABASE_URL=$SUPABASE_URL \
             --dart-define=SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY
     artifacts:
