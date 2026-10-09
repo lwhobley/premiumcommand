@@ -93,7 +93,7 @@ class _MyShiftScreenState extends ConsumerState<MyShiftScreen> {
                     ),
                   );
                 }
-                final departments = departmentsFor(session.roles);
+                final departments = session.departments;
                 return ListView(
                   padding: const EdgeInsets.all(16),
                   children: [

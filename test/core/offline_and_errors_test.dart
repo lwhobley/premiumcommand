@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:cutx_premium_command/core/errors/app_failure.dart';
 import 'package:cutx_premium_command/core/errors/failure_kind.dart';
 import 'package:cutx_premium_command/core/offline/outbox.dart';
 import 'package:cutx_premium_command/features/dispatch/domain/service_request.dart';
@@ -30,6 +31,12 @@ void main() {
       const error = PostgrestException(message: 'Only accepted requests can be started', code: 'P0001');
       expect(classifyFailure(error), FailureKind.rule);
       expect(friendlyMessage(error), 'Only accepted requests can be started');
+    });
+
+    test('database rule messages reach the user through userMessageFor', () {
+      const error = PostgrestException(message: 'A reason is required to block a request', code: 'P0001');
+      expect(userMessageFor(error), 'A reason is required to block a request');
+      expect(userMessageFor(const AppFailure('Describe what is needed.')), 'Describe what is needed.');
     });
 
     test('unknown errors never leak raw text', () {
@@ -73,6 +80,25 @@ void main() {
       await store.replace(item.copyWith(needsReview: true, lastError: 'Conflict'));
       expect(store.items.single.needsReview, isTrue);
       expect(store.items.single.lastError, 'Conflict');
+    });
+
+    test('an item remembers who made it, through storage and review changes', () async {
+      final prefs = await SharedPreferences.getInstance();
+      final first = OutboxStore(prefs: prefs);
+      final item = OutboxItem(
+        id: 'u1-item',
+        kind: 'set_task_status',
+        payload: const {},
+        userId: 'user-a',
+        createdAt: DateTime.now(),
+      );
+      await first.add(item);
+      await first.replace(item.copyWith(needsReview: true));
+
+      final second = OutboxStore(prefs: prefs);
+      await second.load();
+      expect(second.items.single.userId, 'user-a');
+      expect(second.items.single.needsReview, isTrue);
     });
 
     test('removing an item clears it', () async {

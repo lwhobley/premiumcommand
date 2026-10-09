@@ -137,8 +137,10 @@ class RequestCard extends StatelessWidget {
         }
       },
       itemBuilder: (_) => [
-        if (canManage && status != RequestStatus.assigned && status != RequestStatus.blocked)
-          const PopupMenuItem(value: 'assign', child: Text('Assign to department')),
+        // Reassignment: the database allows assign from new, assigned, accepted and blocked.
+        // New and blocked already have the primary Assign button, so the menu covers the rest.
+        if (canManage && (status == RequestStatus.assigned || status == RequestStatus.accepted))
+          const PopupMenuItem(value: 'assign', child: Text('Reassign to department')),
         if (canWork && status != RequestStatus.blocked && status != RequestStatus.isNew)
           const PopupMenuItem(value: 'block', child: Text('Block (give a reason)')),
         if (canWork && (status == RequestStatus.isNew || status == RequestStatus.assigned || status == RequestStatus.accepted))

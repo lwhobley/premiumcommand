@@ -216,7 +216,8 @@ class SupabaseDispatchRepository implements DispatchRepository {
   /// drops, the last good list stays on screen instead of an error.
   @override
   Stream<List<ServiceRequest>> watchRequests(String eventId) async* {
-    final key = 'cutx.requests.$eventId';
+    // Scoped to the signed-in user so a shared device never shows one person's board to another.
+    final key = 'cutx.requests.${_client.auth.currentUser?.id ?? 'anonymous'}.$eventId';
     final cached = await _cache.read(key);
     if (cached != null) {
       yield cached.map(ServiceRequest.fromJson).toList();

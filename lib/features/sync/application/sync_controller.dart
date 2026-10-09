@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/failure_kind.dart';
 import '../../../core/offline/outbox.dart';
+import '../../auth/application/session_controller.dart';
 import '../../dispatch/application/dispatch_providers.dart';
 import '../../dispatch/data/dispatch_repository.dart';
 import '../../dispatch/domain/service_request.dart';
@@ -48,11 +49,17 @@ class SyncController extends Notifier<SyncState> {
     return const SyncState();
   }
 
-  List<OutboxItem> get items => _store.items;
+  /// Only the signed-in person's queued changes.
+  List<OutboxItem> get items {
+    final userId = ref.read(sessionProvider)?.userId;
+    return _store.items.where((i) => i.userId.isEmpty || i.userId == userId).toList();
+  }
 
   void _publish({String? error, bool clearError = false, bool? syncing}) {
-    final pending = _store.items.where((i) => !i.needsReview).length;
-    final review = _store.items.where((i) => i.needsReview).length;
+    final userId = ref.read(sessionProvider)?.userId;
+    final mine = _store.items.where((i) => i.userId.isEmpty || i.userId == userId).toList();
+    final pending = mine.where((i) => !i.needsReview).length;
+    final review = mine.where((i) => i.needsReview).length;
     state = SyncState(
       pending: pending,
       needsReview: review,
@@ -67,6 +74,7 @@ class SyncController extends Notifier<SyncState> {
       id: id ?? _newId(),
       kind: kind,
       payload: payload,
+      userId: ref.read(sessionProvider)?.userId ?? '',
       createdAt: DateTime.now(),
     );
     await _store.add(item);
@@ -77,11 +85,16 @@ class SyncController extends Notifier<SyncState> {
   /// Sends everything waiting, oldest first. Stops at the first network error to keep order.
   Future<void> flush() async {
     if (_flushing) return;
+    // With nobody signed in there is no valid identity to send under, so nothing leaves the device.
+    final userId = ref.read(sessionProvider)?.userId;
+    if (userId == null) return;
     _flushing = true;
     _publish(syncing: true);
     try {
       for (final item in List<OutboxItem>.from(_store.items)) {
         if (item.needsReview) continue;
+        // Another person's queued work waits for that person; it is never sent under this account.
+        if (item.userId.isNotEmpty && item.userId != userId) continue;
         try {
           await _send(item);
           await _store.remove(item.id);

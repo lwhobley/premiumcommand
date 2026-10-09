@@ -152,7 +152,9 @@ class _SnapshotCard extends StatelessWidget {
                 children: [
                   for (final dept in snapshot.departments)
                     StatusChip(
-                      label: '${dept.department.label} ${(dept.percent * 100).round()}%',
+                      label: dept.state == ReadinessState.noTasks
+                          ? '${dept.department.label} · no tasks'
+                          : '${dept.department.label} ${(dept.percent * 100).round()}%',
                       color: readinessColor(dept.state),
                     ),
                 ],

@@ -161,9 +161,26 @@ class PlanningRepository {
     ]);
   }
 
-  Future<void> reassignStaff(String staffId, {required String displayName, String? suiteAssignmentId}) async {
+  /// Names of active venue members, for linking a position to a real account. No emails.
+  Future<List<({String id, String name})>> listVenueMembers(String venueId) async {
+    final rows = await _client.rpc<List<dynamic>>('list_venue_members', params: {'p_venue': venueId});
+    return [
+      for (final r in rows.cast<Map<String, dynamic>>())
+        (id: r['user_id'] as String, name: (r['display_name'] as String?) ?? 'Team member'),
+    ];
+  }
+
+  /// [userId] links the position to an account, which is what lets that person see the assignment
+  /// and receive announcements and BEO notifications. Null leaves a typed name unlinked.
+  Future<void> reassignStaff(
+    String staffId, {
+    required String displayName,
+    String? userId,
+    String? suiteAssignmentId,
+  }) async {
     await _client.from('event_staff').update({
       'display_name': displayName,
+      'user_id': userId,
       'suite_assignment_id': suiteAssignmentId,
       'updated_at': DateTime.now().toUtc().toIso8601String(),
     }).eq('id', staffId);

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/config/app_config.dart';
+import '../../../core/errors/app_failure.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../events/application/event_providers.dart';
 import '../../events/domain/ops_event.dart';
@@ -90,15 +90,11 @@ Future<bool> runWrite(BuildContext context, Future<void> Function() action, {Str
     if (success != null) messenger.showSnackBar(SnackBar(content: Text(success)));
     return true;
   } catch (error) {
-    messenger.showSnackBar(SnackBar(content: Text(_friendly(error))));
+    messenger.showSnackBar(SnackBar(content: Text(userMessageFor(error))));
     return false;
   }
 }
 
-String _friendly(Object error) {
-  if (error is PostgrestException) return error.message;
-  return 'Something went wrong. Please try again.';
-}
 
 /// Date then time picker. Returns null if cancelled.
 Future<DateTime?> pickDateTime(BuildContext context, DateTime initial) async {

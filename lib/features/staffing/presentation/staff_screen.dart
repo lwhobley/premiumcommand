@@ -142,15 +142,47 @@ class _Roster extends ConsumerWidget {
   }
 
   Future<void> _assign(BuildContext context, WidgetRef ref, StaffPosition position) async {
-    final name = await showDialog<String>(
+    // Linking to a real account is what lets the person see this assignment and get notified.
+    final members = await ref.read(venueMembersProvider(venueId).future);
+    if (!context.mounted) return;
+    final choice = await showDialog<({String name, String? userId})>(
       context: context,
-      builder: (_) => _NameDialog(initial: position.displayName),
+      builder: (dialogContext) => SimpleDialog(
+        title: const Text('Assign person'),
+        children: [
+          for (final m in members)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(dialogContext, (name: m.name, userId: m.id)),
+              child: Text(m.name),
+            ),
+          SimpleDialogOption(
+            onPressed: () async {
+              final typed = await showDialog<String>(
+                context: dialogContext,
+                builder: (_) => _NameDialog(initial: position.displayName),
+              );
+              if (typed != null && dialogContext.mounted) {
+                Navigator.pop(dialogContext, (name: typed, userId: null));
+              }
+            },
+            child: const Text('Type a name (no account)…'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(dialogContext, (name: '', userId: null)),
+            child: const Text('Leave uncovered'),
+          ),
+        ],
+      ),
     );
-    if (name == null || !context.mounted) return;
+    if (choice == null || !context.mounted) return;
     await runWrite(context, () async {
-      await ref.read(planningRepositoryProvider).reassignStaff(position.id, displayName: name);
+      await ref.read(planningRepositoryProvider).reassignStaff(
+            position.id,
+            displayName: choice.name,
+            userId: choice.userId,
+          );
       ref.invalidate(staffProvider(eventId));
-    }, success: name.isEmpty ? 'Position is now uncovered.' : 'Assigned to $name.');
+    }, success: choice.name.isEmpty ? 'Position is now uncovered.' : 'Assigned to ${choice.name}.');
   }
 
   Future<void> _importCsv(BuildContext context, WidgetRef ref) async {

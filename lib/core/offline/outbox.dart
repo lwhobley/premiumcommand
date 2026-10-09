@@ -10,6 +10,7 @@ class OutboxItem {
     required this.kind,
     required this.payload,
     required this.createdAt,
+    this.userId = '',
     this.attempts = 0,
     this.needsReview = false,
     this.lastError = '',
@@ -17,6 +18,10 @@ class OutboxItem {
 
   final String id;
   final String kind;
+
+  /// Who made the change. Only this user's session may send it, so a shared device cannot
+  /// send one person's queued work under another person's account.
+  final String userId;
   final Map<String, dynamic> payload;
   final DateTime createdAt;
   final int attempts;
@@ -30,6 +35,7 @@ class OutboxItem {
         kind: kind,
         payload: payload,
         createdAt: createdAt,
+        userId: userId,
         attempts: attempts ?? this.attempts,
         needsReview: needsReview ?? this.needsReview,
         lastError: lastError ?? this.lastError,
@@ -39,6 +45,7 @@ class OutboxItem {
         'id': id,
         'kind': kind,
         'payload': payload,
+        'user_id': userId,
         'created_at': createdAt.toUtc().toIso8601String(),
         'attempts': attempts,
         'needs_review': needsReview,
@@ -49,6 +56,7 @@ class OutboxItem {
         id: json['id'] as String,
         kind: json['kind'] as String,
         payload: (json['payload'] as Map).cast<String, dynamic>(),
+        userId: (json['user_id'] as String?) ?? '',
         createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
         attempts: (json['attempts'] as num?)?.toInt() ?? 0,
         needsReview: json['needs_review'] as bool? ?? false,
@@ -136,5 +144,43 @@ class OfflineCache {
   Future<void> write(String key, List<Map<String, dynamic>> rows) async {
     final prefs = await _instance();
     await prefs?.setString(key, jsonEncode(rows));
+  }
+}
+
+/// The last signed-in session, kept so the app can open without a connection.
+class SessionCache {
+  SessionCache({this.prefs});
+
+  static const _key = 'cutx.session.v1';
+
+  final SharedPreferences? prefs;
+
+  Future<SharedPreferences?> _instance() async {
+    try {
+      return prefs ?? await SharedPreferences.getInstance();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> read() async {
+    final p = await _instance();
+    final raw = p?.getString(_key);
+    if (raw == null) return null;
+    try {
+      return (jsonDecode(raw) as Map).cast<String, dynamic>();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> write(Map<String, dynamic> session) async {
+    final p = await _instance();
+    await p?.setString(_key, jsonEncode(session));
+  }
+
+  Future<void> clear() async {
+    final p = await _instance();
+    await p?.remove(_key);
   }
 }

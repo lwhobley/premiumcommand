@@ -1,5 +1,6 @@
 import 'package:cutx_premium_command/core/permissions/app_permission.dart';
 import 'package:cutx_premium_command/features/auth/domain/app_session.dart';
+import 'package:cutx_premium_command/features/events/domain/readiness.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -39,5 +40,22 @@ void main() {
     );
     expect(session.can(AppPermission.runInspections), isTrue);
     expect(session.can(AppPermission.closeOutEvents), isFalse);
+  });
+
+  test('a session survives storage so the app can open offline', () {
+    const session = AppSession(
+      userId: 'u1',
+      displayName: 'Ana',
+      venueId: 'v1',
+      venueName: 'Venue',
+      timeZone: 'America/Chicago',
+      roles: {AppRole.runner, AppRole.suiteAttendant},
+      departments: {Department.suites},
+    );
+    final back = AppSession.fromJson(session.toJson());
+    expect(back.userId, 'u1');
+    expect(back.roles, session.roles);
+    expect(back.departments, {Department.suites});
+    expect(back.permissions, session.permissions);
   });
 }

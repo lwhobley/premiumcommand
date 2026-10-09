@@ -102,4 +102,21 @@ void main() {
     );
     expect(done.requiredTasksComplete, isTrue);
   });
+
+  test('a department with no required tasks reads as No tasks, not 100% ready', () {
+    final r = computeDepartmentReadiness(
+      department: Department.lounge,
+      tasks: [_task('a', Department.suites, TaskStatus.completed)],
+      serviceStart: now,
+      now: now,
+    );
+    expect(r.state, ReadinessState.noTasks);
+    expect(r.percent, 0);
+  });
+
+  test('overdue is judged against the clock passed in', () {
+    final task = _task('a', Department.suites, TaskStatus.inProgress, due: now.subtract(const Duration(minutes: 1)));
+    expect(task.isOverdueAt(now), isTrue);
+    expect(task.isOverdueAt(now.subtract(const Duration(hours: 1))), isFalse);
+  });
 }

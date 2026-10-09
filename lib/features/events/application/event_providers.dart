@@ -36,11 +36,11 @@ final eventSnapshotsProvider = FutureProvider<List<EventSnapshot>>((ref) async {
   final repo = ref.watch(eventRepositoryProvider);
   final now = DateTime.now();
   final events = await repo.listEvents();
-  final snapshots = <EventSnapshot>[];
-  for (final event in events) {
-    final tasks = await repo.listTasks(event.id);
-    snapshots.add(EventSnapshot(event: event, tasks: tasks, now: now));
-  }
+  // One request per event, all in flight together instead of one after another.
+  final snapshots = await Future.wait([
+    for (final event in events)
+      repo.listTasks(event.id).then((tasks) => EventSnapshot(event: event, tasks: tasks, now: now)),
+  ]);
   snapshots.sort((a, b) => a.event.serviceStart.compareTo(b.event.serviceStart));
   return snapshots;
 });

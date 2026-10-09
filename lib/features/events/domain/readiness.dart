@@ -57,8 +57,8 @@ class EventTask {
   final bool needsReview;
   final String reviewReason;
 
-  bool get isOverdue =>
-      status != TaskStatus.completed && dueAt != null && dueAt!.isBefore(DateTime.now());
+  bool isOverdueAt(DateTime now) =>
+      status != TaskStatus.completed && dueAt != null && dueAt!.isBefore(now);
 
   EventTask copyWith({TaskStatus? status}) {
     return EventTask(
@@ -95,7 +95,10 @@ enum ReadinessState {
   attentionRequired('Attention required'),
   delayed('Delayed'),
   blocked('Blocked'),
-  ready('Ready');
+  ready('Ready'),
+
+  /// The department has no required tasks, so there is nothing to measure yet.
+  noTasks('No tasks');
 
   const ReadinessState(this.label);
 
@@ -116,7 +119,7 @@ class DepartmentReadiness {
   final int completedCount;
   final ReadinessState state;
 
-  double get percent => requiredCount == 0 ? 1 : completedCount / requiredCount;
+  double get percent => requiredCount == 0 ? 0 : completedCount / requiredCount;
 }
 
 /// Computes readiness from real task records. Nothing here is manually entered.
@@ -132,7 +135,9 @@ DepartmentReadiness computeDepartmentReadiness({
   final completed = required.where((t) => t.status == TaskStatus.completed).length;
 
   final ReadinessState state;
-  if (required.isEmpty || completed == required.length) {
+  if (required.isEmpty) {
+    state = ReadinessState.noTasks;
+  } else if (completed == required.length) {
     state = ReadinessState.ready;
   } else if (required.any((t) => t.status == TaskStatus.blocked)) {
     state = ReadinessState.blocked;
@@ -166,7 +171,7 @@ class EventSnapshot {
               now: now,
             ),
         ],
-        overdueCount = tasks.where((t) => t.isRequired && t.isOverdue).length,
+        overdueCount = tasks.where((t) => t.isRequired && t.isOverdueAt(now)).length,
         blockedCount = tasks.where((t) => t.isRequired && t.status == TaskStatus.blocked).length;
 
   final OpsEvent event;

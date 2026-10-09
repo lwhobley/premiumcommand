@@ -1,6 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/errors/app_failure.dart';
+import '../../../core/errors/failure_kind.dart';
+import '../../../core/offline/outbox.dart';
 import '../../../core/permissions/app_permission.dart';
 import '../../dispatch/domain/routing.dart';
 import '../../events/domain/readiness.dart';
@@ -54,15 +56,26 @@ class DemoAuthRepository implements AuthRepository {
 }
 
 class SupabaseAuthRepository implements AuthRepository {
-  SupabaseAuthRepository(this._client);
+  SupabaseAuthRepository(this._client, this._cache);
 
   final SupabaseClient _client;
+  final SessionCache _cache;
 
+  /// Restores the saved sign-in. With no connection it falls back to the last session stored for
+  /// the same user, so the app still opens at a venue with poor signal. The database re-checks
+  /// access on every call, so a stale cached session cannot grant anything.
   @override
   Future<AppSession?> restoreSession() async {
     final user = _client.auth.currentUser;
     if (user == null) return null;
-    return _loadSession(user);
+    try {
+      return await _loadSession(user);
+    } catch (error) {
+      if (!isNetworkError(error)) rethrow;
+      final cached = await _cache.read();
+      if (cached == null || cached['user_id'] != user.id) rethrow;
+      return AppSession.fromJson(cached);
+    }
   }
 
   @override
@@ -77,7 +90,10 @@ class SupabaseAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<void> signOut() => _client.auth.signOut();
+  Future<void> signOut() async {
+    await _cache.clear();
+    await _client.auth.signOut();
+  }
 
   /// Loads venue access from the database. RLS limits these rows to the caller.
   Future<AppSession> _loadSession(User user) async {
@@ -114,7 +130,7 @@ class SupabaseAuthRepository implements AuthRepository {
         .cast<Map<String, dynamic>>();
     final departments = {for (final r in deptRows) Department.fromCode(r['department'] as String)};
 
-    return AppSession(
+    final session = AppSession(
       userId: user.id,
       displayName: (profile?['display_name'] as String?) ?? user.email ?? 'Team member',
       venueId: venueId,
@@ -123,5 +139,7 @@ class SupabaseAuthRepository implements AuthRepository {
       roles: roles,
       departments: departments,
     );
+    await _cache.write(session.toJson());
+    return session;
   }
 }

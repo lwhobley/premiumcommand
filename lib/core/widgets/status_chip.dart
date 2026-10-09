@@ -34,7 +34,7 @@ Color readinessColor(ReadinessState state) => switch (state) {
       ReadinessState.attentionRequired => AppColors.attention,
       ReadinessState.delayed => AppColors.delayed,
       ReadinessState.blocked => AppColors.blocked,
-      ReadinessState.notStarted => AppColors.neutral,
+      ReadinessState.notStarted || ReadinessState.noTasks => AppColors.neutral,
     };
 
 Color eventStatusColor(EventStatus status) => switch (status) {

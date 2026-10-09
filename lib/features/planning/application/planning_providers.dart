@@ -38,3 +38,7 @@ final beoProvider = FutureProvider.family<BeoBundle?, String>((ref, eventId) {
 final venueSuitesProvider = FutureProvider.family<List<Map<String, dynamic>>, String>((ref, venueId) {
   return ref.watch(planningRepositoryProvider).listVenueSuites(venueId);
 });
+
+final venueMembersProvider = FutureProvider.family<List<({String id, String name})>, String>((ref, venueId) {
+  return ref.watch(planningRepositoryProvider).listVenueMembers(venueId);
+});
