@@ -9,6 +9,7 @@ import '../../dispatch/domain/service_request.dart';
 import '../../operations/application/operations_providers.dart';
 import '../../planning/application/planning_providers.dart';
 import '../../planning/presentation/planning_widgets.dart';
+import 'people_section.dart';
 
 /// Administration: venue details, suite configuration, and the checklist library.
 class AdminScreen extends ConsumerWidget {
@@ -50,6 +51,10 @@ class AdminScreen extends ConsumerWidget {
           else
             _SuiteList(venueId: session.venueId),
           const SizedBox(height: 20),
+          if (backendAvailable && session != null && canConfigure) ...[
+            PeopleSection(venueId: session.venueId, currentUserId: session.userId),
+            const SizedBox(height: 20),
+          ],
           Text('Escalation limits', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           if (!backendAvailable)
