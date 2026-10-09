@@ -142,6 +142,24 @@ class ServiceRequest {
     );
   }
 
+  /// Same shape as the database row, so the cache can be read back with [fromJson].
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'event_id': eventId,
+        'client_request_id': clientRequestId,
+        'category': category.code,
+        'location': location,
+        'description': description,
+        'priority': priority.code,
+        'status': status.code,
+        'created_at': createdAt.toUtc().toIso8601String(),
+        'version': version,
+        'assigned_department': assignedDepartment,
+        'assigned_user_id': assignedUserId,
+        'acknowledged_at': acknowledgedAt?.toUtc().toIso8601String(),
+        'completed_at': completedAt?.toUtc().toIso8601String(),
+      };
+
   static DateTime? _parseNullable(Object? value) =>
       value == null ? null : DateTime.parse(value as String).toLocal();
 }

@@ -3,8 +3,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/config/app_config.dart';
 import '../../../core/errors/app_failure.dart';
+import '../../../core/errors/failure_kind.dart';
 import '../../../core/permissions/app_permission.dart';
 import '../../auth/application/session_controller.dart';
+import '../../sync/application/sync_controller.dart';
 import '../../auth/domain/app_session.dart';
 import '../data/event_repository.dart';
 import '../domain/event_lifecycle.dart';
@@ -75,6 +77,8 @@ class EventActions {
       throw const AppFailure('You do not have permission to create events.');
     }
     final created = await _repo.createEvent(draft);
+    // Template tasks make readiness meaningful from the start. Idempotent, so a retry is safe.
+    await _repo.generateTasks(created.id);
     _refresh();
     return created;
   }
@@ -99,7 +103,16 @@ class EventActions {
     // Completing an already-completed task is a no-op so duplicate taps do not double-write.
     if (task.status == status) return;
 
-    await _repo.setTaskStatus(task.id, status);
+    try {
+      await _repo.setTaskStatus(task.id, status);
+    } catch (error) {
+      if (!isNetworkError(error)) rethrow;
+      // Task status is absolute, so a repeated send is harmless. Queue it for later.
+      await _ref.read(syncControllerProvider.notifier).enqueue(outboxSetTaskStatus, {
+        'task_id': task.id,
+        'status': status.code,
+      });
+    }
     _refresh();
   }
 }

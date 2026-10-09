@@ -17,6 +17,9 @@ abstract interface class EventRepository {
   Future<List<EventTask>> listTasks(String eventId);
 
   Future<EventTask> setTaskStatus(String taskId, TaskStatus status);
+
+  /// Adds template tasks the event does not have yet. Returns how many were added.
+  Future<int> generateTasks(String eventId);
 }
 
 /// In-memory sample data for previewing without a backend. Clearly labeled in the UI.
@@ -145,6 +148,10 @@ class DemoEventRepository implements EventRepository {
     _tasks[index] = updated;
     return updated;
   }
+
+  /// Demo tasks are seeded with each event, so there is nothing to generate.
+  @override
+  Future<int> generateTasks(String eventId) async => 0;
 }
 
 class SupabaseEventRepository implements EventRepository {
@@ -184,6 +191,11 @@ class SupabaseEventRepository implements EventRepository {
   Future<List<EventTask>> listTasks(String eventId) async {
     final rows = await _client.from('event_tasks').select().eq('event_id', eventId);
     return rows.cast<Map<String, dynamic>>().map(EventTask.fromJson).toList();
+  }
+
+  @override
+  Future<int> generateTasks(String eventId) async {
+    return _client.rpc<int>('generate_event_tasks', params: {'p_event': eventId});
   }
 
   @override

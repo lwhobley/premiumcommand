@@ -2,11 +2,18 @@ import 'package:flutter/material.dart';
 
 import '../core/permissions/app_permission.dart';
 import '../features/command_center/command_center_screen.dart';
+import '../features/admin/presentation/admin_screen.dart';
+import '../features/beo/presentation/beo_screen.dart';
+import '../features/closeout/presentation/closeout_screen.dart';
+import '../features/operations/presentation/communications_screen.dart';
+import '../features/operations/presentation/culinary_screen.dart';
+import '../features/operations/presentation/inspections_screen.dart';
 import '../features/dispatch/presentation/dispatch_screen.dart';
+import '../features/staffing/presentation/staff_screen.dart';
+import '../features/suites/presentation/premium_spaces_screen.dart';
 import '../features/dispatch/presentation/my_shift_screen.dart';
 import '../features/events/presentation/event_calendar_screen.dart';
 import '../features/events/presentation/event_list_screen.dart';
-import 'placeholder_screen.dart';
 
 /// Primary navigation sections. Routes and nav items are both derived from this list.
 /// A null [permission] means any signed-in user may open the section.
@@ -128,7 +135,14 @@ enum AppSection {
       AppSection.eventWorkspace => const EventListScreen(),
       AppSection.liveDispatch => const DispatchScreen(),
       AppSection.myShift => const MyShiftScreen(),
-      _ => PlaceholderScreen(title: label, plannedPhase: phase),
+      AppSection.beoManagement => const BeoScreen(),
+      AppSection.premiumSpaces => const PremiumSpacesScreen(),
+      AppSection.staffDeployment => const StaffScreen(),
+      AppSection.banquetsCulinary => const CulinaryScreen(),
+      AppSection.inspections => const InspectionsScreen(),
+      AppSection.communications => const CommunicationsScreen(),
+      AppSection.closeout => const CloseoutScreen(),
+      AppSection.administration => const AdminScreen(),
     };
   }
 }

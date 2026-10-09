@@ -4,6 +4,8 @@ import 'dart:math';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/errors/app_failure.dart';
+import '../../../core/errors/failure_kind.dart';
+import '../../../core/offline/outbox.dart';
 import '../domain/service_request.dart';
 
 /// Draft fields for a new request. The client id is generated once per form so retries are safe.
@@ -167,17 +169,33 @@ class DemoDispatchRepository implements DispatchRepository {
 
 /// Supabase dispatch. Writes go through database functions that enforce the rules.
 class SupabaseDispatchRepository implements DispatchRepository {
-  SupabaseDispatchRepository(this._client);
+  SupabaseDispatchRepository(this._client, this._cache);
 
   final SupabaseClient _client;
+  final OfflineCache _cache;
 
+  /// Emits the cached list first (so the board is never blank), then live rows. If the connection
+  /// drops, the last good list stays on screen instead of an error.
   @override
-  Stream<List<ServiceRequest>> watchRequests(String eventId) {
-    return _client
-        .from('service_requests')
-        .stream(primaryKey: ['id'])
-        .eq('event_id', eventId)
-        .map((rows) => rows.map(ServiceRequest.fromJson).toList());
+  Stream<List<ServiceRequest>> watchRequests(String eventId) async* {
+    final key = 'cutx.requests.$eventId';
+    final cached = await _cache.read(key);
+    if (cached != null) {
+      yield cached.map(ServiceRequest.fromJson).toList();
+    }
+    try {
+      final live = _client
+          .from('service_requests')
+          .stream(primaryKey: ['id'])
+          .eq('event_id', eventId);
+      await for (final rows in live) {
+        final list = rows.map(ServiceRequest.fromJson).toList();
+        await _cache.write(key, [for (final r in list) r.toJson()]);
+        yield list;
+      }
+    } catch (error) {
+      if (!isNetworkError(error)) rethrow;
+    }
   }
 
   @override

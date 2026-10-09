@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../core/theme/app_theme.dart';
 import '../features/auth/application/session_controller.dart';
+import '../features/sync/presentation/sync_banner.dart';
 import 'app_section.dart';
 
 const _wideBreakpoint = 840.0;
@@ -27,7 +28,9 @@ class ShellScaffold extends ConsumerWidget {
     if (session == null) return child;
 
     final location = GoRouterState.of(context).uri.path;
-    final visible = AppSection.values.where((s) => s.allows(session.permissions)).toList();
+    final visible = AppSection.values
+        .where((s) => s.allows(session.permissions))
+        .toList();
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -35,9 +38,20 @@ class ShellScaffold extends ConsumerWidget {
           return Scaffold(
             body: Row(
               children: [
-                _Sidebar(sections: visible, location: location, venueName: session.venueName),
+                _Sidebar(
+                  sections: visible,
+                  location: location,
+                  venueName: session.venueName,
+                ),
                 const VerticalDivider(width: 1),
-                Expanded(child: child),
+                Expanded(
+                  child: Column(
+                    children: [
+                      const SyncBanner(),
+                      Expanded(child: child),
+                    ],
+                  ),
+                ),
               ],
             ),
           );
@@ -46,7 +60,12 @@ class ShellScaffold extends ConsumerWidget {
         final primary = _mobilePrimary.where(visible.contains).toList();
         final selected = primary.indexWhere((s) => location.startsWith(s.path));
         return Scaffold(
-          body: child,
+          body: Column(
+            children: [
+              const SyncBanner(),
+              Expanded(child: child),
+            ],
+          ),
           bottomNavigationBar: NavigationBar(
             selectedIndex: selected < 0 ? primary.length : selected,
             onDestinationSelected: (index) {
@@ -58,8 +77,14 @@ class ShellScaffold extends ConsumerWidget {
             },
             destinations: [
               for (final section in primary)
-                NavigationDestination(icon: Icon(section.icon), label: section.label.split(' ').first),
-              const NavigationDestination(icon: Icon(Icons.more_horiz), label: 'More'),
+                NavigationDestination(
+                  icon: Icon(section.icon),
+                  label: section.label.split(' ').first,
+                ),
+              const NavigationDestination(
+                icon: Icon(Icons.more_horiz),
+                label: 'More',
+              ),
             ],
           ),
         );
@@ -69,7 +94,11 @@ class ShellScaffold extends ConsumerWidget {
 }
 
 class _Sidebar extends ConsumerWidget {
-  const _Sidebar({required this.sections, required this.location, required this.venueName});
+  const _Sidebar({
+    required this.sections,
+    required this.location,
+    required this.venueName,
+  });
 
   final List<AppSection> sections;
   final String location;
@@ -78,59 +107,69 @@ class _Sidebar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(sessionProvider);
-    return Container(
+    // Material gives the list tiles an ink ancestor; a plain coloured Container would hide their splashes.
+    return SizedBox(
       width: 240,
-      color: AppColors.surface,
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('CUTX Premium Command',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 4),
-                  Text(venueName,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.charcoalMuted)),
-                ],
-              ),
-            ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                children: [
-                  for (final section in sections)
-                    _SidebarItem(
-                      section: section,
-                      selected: location.startsWith(section.path),
+      child: Material(
+        color: AppColors.surface,
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'CUTX Premium Command',
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w600),
                     ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      session?.displayName ?? '',
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall,
+                    const SizedBox(height: 4),
+                    Text(
+                      venueName,
+                      style: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(color: AppColors.charcoalMuted),
                     ),
-                  ),
-                  IconButton(
-                    tooltip: 'Sign out',
-                    icon: const Icon(Icons.logout),
-                    onPressed: () => ref.read(sessionProvider.notifier).signOut(),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  children: [
+                    for (final section in sections)
+                      _SidebarItem(
+                        section: section,
+                        selected: location.startsWith(section.path),
+                      ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        session?.displayName ?? '',
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Sign out',
+                      icon: const Icon(Icons.logout),
+                      onPressed: () =>
+                          ref.read(sessionProvider.notifier).signOut(),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

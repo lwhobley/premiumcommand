@@ -99,7 +99,8 @@ class _WorkspaceBody extends ConsumerWidget {
               title: Text(task.title),
               subtitle: Text(
                 '${task.department.label}${task.isRequired ? '' : ' · optional'} · ${task.status.label}'
-                '${task.isOverdue ? ' · overdue' : ''}',
+                '${task.isOverdue ? ' · overdue' : ''}'
+                '${task.needsReview ? '\nBEO changed: ${task.reviewReason}' : ''}',
               ),
               onChanged: permissions.contains(AppPermission.updateTasks)
                   ? (checked) => _run(
