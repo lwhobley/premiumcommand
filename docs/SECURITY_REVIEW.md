@@ -30,7 +30,7 @@ Reviewed against the Supabase advisors and the migration rules. Migration `0007`
 
 ## Still open
 
-1. **Push notifications are not implemented.** They need Firebase Cloud Messaging or APNs, plus web push keys. These are platform configuration decisions and credentials that have not been provided. In-app notifications work.
+1. **Push notifications are built but unverified on a device.** Devices register a token (`device_tokens`), a trigger on `notifications` calls the `send-push` Edge Function, and it sends through Firebase Cloud Messaging. Needs a real iPhone test. Web push is not included.
 2. **Department membership has no admin screen.** It is stored and enforced, but people are assigned by SQL (or the Supabase dashboard) for now. The admin screen needs a user directory, which the app does not have yet.
 3. **Escalation limits are configured per venue, not per category.** Category-level thresholds would need a second dimension in `escalation_rules`.
 4. **The isolation checks are a script, not a CI job.** `supabase/tests/rls_and_rules.sql` runs against a database with the migrations applied. CI has no database credentials, so it does not run there.
