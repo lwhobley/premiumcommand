@@ -140,6 +140,7 @@ class _ShiftSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final requests = ref.watch(eventRequestsProvider(event.id));
+    final thresholds = ref.watch(escalationThresholdsProvider).value;
     final canWork = permissions.contains(AppPermission.manageRequests);
     final canManage = permissions.contains(AppPermission.manageEvents);
 
@@ -161,7 +162,7 @@ class _ShiftSection extends ConsumerWidget {
                 requests: all,
                 userId: userId,
                 departments: departments,
-              )..sort((a, b) => compareForDispatch(a, b, now));
+              )..sort((a, b) => compareForDispatch(a, b, now, thresholds));
               if (mine.isEmpty) {
                 return const Text('Nothing assigned to you right now.', style: TextStyle(color: AppColors.charcoalMuted));
               }
@@ -175,6 +176,7 @@ class _ShiftSection extends ConsumerWidget {
                       canWork: canWork,
                       onAdvance: (to) => onAdvance(request, to),
                       onAssign: () => onAssign(request),
+                      thresholds: thresholds,
                       onWithReason: (to) => onWithReason(request, to),
                     ),
                 ],

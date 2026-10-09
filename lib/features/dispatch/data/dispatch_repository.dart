@@ -26,6 +26,12 @@ class ServiceRequestDraft {
 }
 
 abstract interface class DispatchRepository {
+  /// Venue escalation limits per priority. Missing rows fall back to the built-in defaults.
+  Future<Map<RequestPriority, Duration>> escalationThresholds(String venueId);
+
+  /// Manager-only configuration. Enforced by row-level security.
+  Future<void> setEscalationThreshold(String venueId, RequestPriority priority, int minutes);
+
   /// Emits the current requests for an event, then again on every change.
   Stream<List<ServiceRequest>> watchRequests(String eventId);
 
@@ -62,6 +68,17 @@ class DemoDispatchRepository implements DispatchRepository {
   final List<ServiceRequest> _requests = [];
   final Map<String, ServiceRequest> _byClientId = {};
   final Set<String> _seededEvents = {};
+  final Map<RequestPriority, Duration> _thresholds = {};
+
+  @override
+  Future<Map<RequestPriority, Duration>> escalationThresholds(String venueId) async => {
+        for (final p in RequestPriority.values) p: _thresholds[p] ?? p.escalateAfter,
+      };
+
+  @override
+  Future<void> setEscalationThreshold(String venueId, RequestPriority priority, int minutes) async {
+    _thresholds[priority] = Duration(minutes: minutes);
+  }
   final _changes = StreamController<void>.broadcast();
   int _next = 1;
 
@@ -170,6 +187,27 @@ class DemoDispatchRepository implements DispatchRepository {
 /// Supabase dispatch. Writes go through database functions that enforce the rules.
 class SupabaseDispatchRepository implements DispatchRepository {
   SupabaseDispatchRepository(this._client, this._cache);
+
+  @override
+  Future<Map<RequestPriority, Duration>> escalationThresholds(String venueId) async {
+    final rows = (await _client.from('escalation_rules').select('priority, minutes').eq('venue_id', venueId))
+        .cast<Map<String, dynamic>>();
+    final result = {for (final p in RequestPriority.values) p: p.escalateAfter};
+    for (final r in rows) {
+      result[RequestPriority.fromCode(r['priority'] as String)] = Duration(minutes: (r['minutes'] as num).toInt());
+    }
+    return result;
+  }
+
+  @override
+  Future<void> setEscalationThreshold(String venueId, RequestPriority priority, int minutes) async {
+    await _client.from('escalation_rules').upsert({
+      'venue_id': venueId,
+      'priority': priority.code,
+      'minutes': minutes,
+    }, onConflict: 'venue_id,priority');
+  }
+
 
   final SupabaseClient _client;
   final OfflineCache _cache;

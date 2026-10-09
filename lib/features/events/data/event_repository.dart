@@ -200,15 +200,11 @@ class SupabaseEventRepository implements EventRepository {
 
   @override
   Future<EventTask> setTaskStatus(String taskId, TaskStatus status) async {
-    final row = await _client
-        .from('event_tasks')
-        .update({
-          'status': status.code,
-          'completed_at': status == TaskStatus.completed ? DateTime.now().toUtc().toIso8601String() : null,
-        })
-        .eq('id', taskId)
-        .select()
-        .single();
+    // set_task_status enforces the rules: reopen needs a manager, and a BEO-flagged task needs acknowledgment.
+    final row = await _client.rpc<Map<String, dynamic>>('set_task_status', params: {
+      'p_task': taskId,
+      'p_status': status.code,
+    });
     return EventTask.fromJson(row);
   }
 }

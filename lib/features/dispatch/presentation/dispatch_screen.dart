@@ -161,16 +161,17 @@ class _Board extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final requests = ref.watch(eventRequestsProvider(eventId));
+    final thresholds = ref.watch(escalationThresholdsProvider).value;
 
     return requests.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, _) => Center(child: Text(userMessageFor(error))),
       data: (all) {
         final open = all.where((r) => r.status.isOpen).toList()
-          ..sort((a, b) => compareForDispatch(a, b, now));
+          ..sort((a, b) => compareForDispatch(a, b, now, thresholds));
         final closed = all.where((r) => r.status.isTerminal).toList()
           ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        final escalatedCount = open.where((r) => r.isEscalated(now)).length;
+        final escalatedCount = open.where((r) => r.isEscalated(now, thresholds)).length;
 
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
@@ -198,6 +199,7 @@ class _Board extends ConsumerWidget {
                 canWork: canWork,
                 onAdvance: (to) => onAdvance(request, to),
                 onAssign: () => onAssign(request),
+                thresholds: thresholds,
                 onWithReason: (to) => onWithReason(request, to),
               ),
             if (closed.isNotEmpty) ...[

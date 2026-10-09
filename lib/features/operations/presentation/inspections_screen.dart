@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:typed_data';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../core/permissions/app_permission.dart';
 import '../../../core/theme/app_theme.dart';
@@ -9,6 +12,7 @@ import '../../auth/domain/app_session.dart';
 import '../../planning/application/planning_providers.dart';
 import '../../planning/presentation/planning_widgets.dart';
 import '../application/operations_providers.dart';
+import '../data/evidence_storage.dart';
 import '../domain/operations.dart';
 
 /// Inspections and checklists: start from a template, complete item by item, then approve.
@@ -111,7 +115,12 @@ class _Instances extends ConsumerWidget {
   Future<void> _complete(BuildContext context, WidgetRef ref, InspectionInstance inst, ChecklistTemplate template) async {
     final responses = await showDialog<List<Map<String, dynamic>>>(
       context: context,
-      builder: (_) => _CompleteDialog(template: template),
+      builder: (_) => _CompleteDialog(
+        template: template,
+        storage: ref.read(evidenceStorageProvider),
+        venueId: session?.venueId ?? '',
+        eventId: eventId,
+      ),
     );
     if (responses == null || !context.mounted) return;
     final messenger = ScaffoldMessenger.of(context);
@@ -233,7 +242,16 @@ class _StartDialogState extends State<_StartDialog> {
 }
 
 class _CompleteDialog extends StatefulWidget {
-  const _CompleteDialog({required this.template});
+  const _CompleteDialog({
+    required this.template,
+    required this.storage,
+    required this.venueId,
+    required this.eventId,
+  });
+
+  final EvidenceStorage storage;
+  final String venueId;
+  final String eventId;
 
   final ChecklistTemplate template;
 
@@ -244,6 +262,36 @@ class _CompleteDialog extends StatefulWidget {
 class _CompleteDialogState extends State<_CompleteDialog> {
   late final Map<String, bool?> _passed = {for (final i in widget.template.items) i.id: null};
   final Map<String, TextEditingController> _notes = {};
+  final Map<String, String> _photos = {};
+  final Set<String> _uploading = {};
+
+  /// Picks one photo for an item and uploads it to the private evidence bucket.
+  Future<void> _addPhoto(String itemId) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final file = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1600,
+        imageQuality: 80,
+      );
+      if (file == null) return;
+      setState(() => _uploading.add(itemId));
+      final Uint8List bytes = await file.readAsBytes();
+      final ext = file.name.contains('.') ? file.name.split('.').last : 'jpg';
+      final path = await widget.storage.upload(
+        venueId: widget.venueId,
+        eventId: widget.eventId,
+        bytes: bytes,
+        extension: ext,
+      );
+      if (!mounted) return;
+      setState(() => _photos[itemId] = path);
+    } catch (error) {
+      messenger.showSnackBar(SnackBar(content: Text(error is StateError ? error.message : 'The photo could not be added.')));
+    } finally {
+      if (mounted) setState(() => _uploading.remove(itemId));
+    }
+  }
 
   @override
   void dispose() {
@@ -262,6 +310,7 @@ class _CompleteDialogState extends State<_CompleteDialog> {
         'item_id': item.id,
         'passed': value,
         'text_value': _notes[item.id]?.text.trim() ?? '',
+        'photo_url': _photos[item.id] ?? '',
       });
     }
     if (responses.length != widget.template.items.length) return;
@@ -306,6 +355,18 @@ class _CompleteDialogState extends State<_CompleteDialog> {
                           controller: _notes.putIfAbsent(item.id, () => TextEditingController()),
                           decoration: const InputDecoration(labelText: 'What failed? (opens a corrective task)'),
                         ),
+                      const SizedBox(height: 6),
+                      Row(children: [
+                        OutlinedButton.icon(
+                          onPressed: _uploading.contains(item.id) ? null : () => _addPhoto(item.id),
+                          icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                          label: Text(_uploading.contains(item.id)
+                              ? 'Uploading…'
+                              : _photos.containsKey(item.id)
+                                  ? 'Photo added (replace)'
+                                  : 'Add photo'),
+                        ),
+                      ]),
                     ],
                   ),
                 ),

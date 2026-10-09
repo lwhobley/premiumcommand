@@ -2,6 +2,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/errors/app_failure.dart';
 import '../../../core/permissions/app_permission.dart';
+import '../../dispatch/domain/routing.dart';
+import '../../events/domain/readiness.dart';
 import '../domain/app_session.dart';
 
 abstract interface class AuthRepository {
@@ -41,6 +43,7 @@ class DemoAuthRepository implements AuthRepository {
       venueName: 'Demonstration Venue (sample data)',
       timeZone: 'America/Chicago',
       roles: {role},
+      departments: departmentsFor({role}),
     );
   }
 
@@ -103,6 +106,14 @@ class SupabaseAuthRepository implements AuthRepository {
         .eq('id', user.id)
         .maybeSingle();
 
+    final deptRows = (await _client
+            .from('department_memberships')
+            .select('department')
+            .eq('venue_id', venueId)
+            .eq('user_id', user.id))
+        .cast<Map<String, dynamic>>();
+    final departments = {for (final r in deptRows) Department.fromCode(r['department'] as String)};
+
     return AppSession(
       userId: user.id,
       displayName: (profile?['display_name'] as String?) ?? user.email ?? 'Team member',
@@ -110,6 +121,7 @@ class SupabaseAuthRepository implements AuthRepository {
       venueName: venue['name'] as String,
       timeZone: venue['time_zone'] as String,
       roles: roles,
+      departments: departments,
     );
   }
 }

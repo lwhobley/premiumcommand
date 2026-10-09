@@ -159,6 +159,17 @@ void main() {
       expect(request.isEscalated(now), isFalse);
     });
 
+    test('a venue threshold overrides the built-in default', () {
+      final request = _request(createdAt: now.subtract(const Duration(minutes: 8)));
+      // Default for normal is 20 minutes, so 8 minutes is fine.
+      expect(request.isEscalated(now), isFalse);
+      // A venue that sets normal to 5 minutes escalates the same request.
+      expect(
+        request.isEscalated(now, {RequestPriority.normal: const Duration(minutes: 5)}),
+        isTrue,
+      );
+    });
+
     test('a recent normal request is not escalated', () {
       final request = _request(createdAt: now.subtract(const Duration(minutes: 5)));
       expect(request.isEscalated(now), isFalse);

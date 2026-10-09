@@ -99,9 +99,11 @@ class ServiceRequest {
   final DateTime? completedAt;
 
   /// Only unacknowledged open requests escalate. Once someone accepts, response time is met.
-  bool isEscalated(DateTime now) {
+  /// [thresholds] comes from the venue's escalation rules. Without them the built-in defaults apply.
+  bool isEscalated(DateTime now, [Map<RequestPriority, Duration>? thresholds]) {
     final unacknowledged = acknowledgedAt == null && (status == RequestStatus.isNew || status == RequestStatus.assigned);
-    return unacknowledged && now.difference(createdAt) > priority.escalateAfter;
+    final limit = thresholds?[priority] ?? priority.escalateAfter;
+    return unacknowledged && now.difference(createdAt) > limit;
   }
 
   ServiceRequest copyWith({RequestStatus? status, int? version}) {

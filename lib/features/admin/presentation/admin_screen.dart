@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/permissions/app_permission.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/application/session_controller.dart';
+import '../../dispatch/application/dispatch_providers.dart';
+import '../../dispatch/domain/service_request.dart';
 import '../../operations/application/operations_providers.dart';
 import '../../planning/application/planning_providers.dart';
 import '../../planning/presentation/planning_widgets.dart';
@@ -48,6 +50,17 @@ class AdminScreen extends ConsumerWidget {
           else
             _SuiteList(venueId: session.venueId),
           const SizedBox(height: 20),
+          Text('Escalation limits', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          if (!backendAvailable)
+            const Text('Connect a backend to change escalation limits.',
+                style: TextStyle(color: AppColors.charcoalMuted))
+          else if (session != null && canConfigure)
+            _EscalationEditor(venueId: session.venueId)
+          else
+            const Text('Only managers can change escalation limits.',
+                style: TextStyle(color: AppColors.charcoalMuted)),
+          const SizedBox(height: 20),
           Text('Checklist library', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           if (!backendAvailable)
@@ -72,6 +85,92 @@ class AdminScreen extends ConsumerWidget {
           );
       ref.invalidate(venueSuitesProvider(venueId));
     }, success: 'Suite added.');
+  }
+}
+
+/// Minutes an unacknowledged request may wait before it escalates, per priority.
+class _EscalationEditor extends ConsumerWidget {
+  const _EscalationEditor({required this.venueId});
+
+  final String venueId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final limits = ref.watch(escalationThresholdsProvider);
+    return limits.when(
+      loading: () => const LinearProgressIndicator(),
+      error: (error, _) => Text('$error'),
+      data: (map) => Column(
+        children: [
+          for (final p in RequestPriority.values)
+            Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                title: Text(p.label),
+                subtitle: Text('Escalates after ${map[p]!.inMinutes} minutes without acknowledgment'),
+                trailing: const Icon(Icons.edit_outlined),
+                onTap: () async {
+                  final text = await showDialog<String>(
+                    context: context,
+                    builder: (_) => _MinutesDialog(
+                      title: '${p.label} escalation (minutes)',
+                      initial: '${map[p]!.inMinutes}',
+                    ),
+                  );
+                  if (text == null || !context.mounted) return;
+                  final minutes = int.tryParse(text);
+                  if (minutes == null || minutes < 1 || minutes > 1440) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Enter whole minutes between 1 and 1440.')),
+                    );
+                    return;
+                  }
+                  await runWrite(context, () async {
+                    await ref.read(dispatchRepositoryProvider).setEscalationThreshold(venueId, p, minutes);
+                    ref.invalidate(escalationThresholdsProvider);
+                  }, success: '${p.label} escalation set to $minutes minutes.');
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MinutesDialog extends StatefulWidget {
+  const _MinutesDialog({required this.title, required this.initial});
+
+  final String title;
+  final String initial;
+
+  @override
+  State<_MinutesDialog> createState() => _MinutesDialogState();
+}
+
+class _MinutesDialogState extends State<_MinutesDialog> {
+  late final _controller = TextEditingController(text: widget.initial);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: TextField(
+        controller: _controller,
+        keyboardType: TextInputType.number,
+        autofocus: true,
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        FilledButton(onPressed: () => Navigator.pop(context, _controller.text.trim()), child: const Text('Save')),
+      ],
+    );
   }
 }
 

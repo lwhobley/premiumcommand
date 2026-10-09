@@ -17,10 +17,14 @@ class RequestCard extends StatelessWidget {
     required this.onAdvance,
     required this.onAssign,
     required this.onWithReason,
+    this.thresholds,
   });
 
   final ServiceRequest request;
   final DateTime now;
+
+  /// The venue's escalation limits. Null means the built-in defaults.
+  final Map<RequestPriority, Duration>? thresholds;
   final bool canManage;
   final bool canWork;
 
@@ -35,7 +39,7 @@ class RequestCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final escalated = request.isEscalated(now);
+    final escalated = request.isEscalated(now, thresholds);
     final age = now.difference(request.createdAt).inMinutes;
     final primary = _primaryAction();
 

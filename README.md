@@ -23,7 +23,7 @@ Premium hospitality operations for event execution: events, lifecycle, readiness
 | Administration (suites, checklist library) | Built (partial: see below) |
 | Offline queue for dispatch and task updates, with conflict review | Built |
 | Offline read cache for dispatch | Built |
-| Security and performance review | See `docs/SECURITY_REVIEW.md` |
+| Security and performance review, open items closed except push notifications | See `docs/SECURITY_REVIEW.md` |
 | Deployment guide and CI | See `docs/DEPLOYMENT.md`, `.github/workflows/ci.yml` |
 
 Not yet built, or built only partly: see `docs/SECURITY_REVIEW.md` "Open" for the gaps that matter before go-live.

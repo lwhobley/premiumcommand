@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../data/evidence_storage.dart';
 import '../data/operations_repository.dart';
 import '../domain/operations.dart';
 
@@ -8,7 +9,11 @@ final operationsRepositoryProvider = Provider<OperationsRepository>((ref) {
   return OperationsRepository(Supabase.instance.client);
 });
 
-final timelineProvider = FutureProvider.family<List<TimelineItem>, String>((ref, eventId) {
+final evidenceStorageProvider = Provider<EvidenceStorage>((ref) {
+  return EvidenceStorage(Supabase.instance.client);
+});
+
+final timelineProvider =FutureProvider.family<List<TimelineItem>, String>((ref, eventId) {
   return ref.watch(operationsRepositoryProvider).listTimeline(eventId);
 });
 

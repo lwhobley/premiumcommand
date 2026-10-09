@@ -27,6 +27,12 @@ final eventRequestsProvider = StreamProvider.family<List<ServiceRequest>, String
   return ref.watch(dispatchRepositoryProvider).watchRequests(eventId);
 });
 
+/// Escalation limits for the signed-in venue. Re-read when the session changes.
+final escalationThresholdsProvider = FutureProvider<Map<RequestPriority, Duration>>((ref) {
+  final venueId = ref.watch(sessionProvider)?.venueId ?? 'demo-venue';
+  return ref.watch(dispatchRepositoryProvider).escalationThresholds(venueId);
+});
+
 /// Write actions for dispatch. Each checks permissions and lifecycle rules first.
 final dispatchActionsProvider = Provider<DispatchActions>((ref) => DispatchActions(ref));
 
@@ -78,8 +84,13 @@ class DispatchActions {
     String? userId,
   }) async {
     final session = _session;
+    // Mirrors the database: a named person, or a department-level request in the user's own department.
+    final dept = request.assignedDepartment;
     final isAssignee = request.assignedUserId == session.userId ||
-        (request.assignedUserId == null && session.can(AppPermission.manageRequests));
+        (request.assignedUserId == null &&
+            dept != null &&
+            session.can(AppPermission.manageRequests) &&
+            session.departments.any((d) => d.code == dept));
     final decision = evaluateRequestTransition(
       from: request.status,
       to: to,

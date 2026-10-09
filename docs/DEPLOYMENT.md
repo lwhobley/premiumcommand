@@ -12,6 +12,10 @@ Migrations live in `supabase/migrations/` and must be applied in order:
 4. `0004_hospitality_operations.sql`: banquet timeline, culinary handoffs, inspections, communications, closeout
 5. `0005_audit_and_hardening.sql`: workflow audit trail
 6. `0006_performance_policies.sql`: RLS initplan fixes, split write policies, indexes
+7. `0007_close_open_items.sql`: department membership, task status function, BEO notifications, escalation rules, evidence storage
+8. `0008`: the null-safe assignee check (applied as `fix_null_assignee_check`; included in `0007` in the repo)
+
+After applying, run `supabase/tests/rls_and_rules.sql` against the database to confirm the rules hold.
 
 Apply with the Supabase CLI against the linked project **(manual)**:
 

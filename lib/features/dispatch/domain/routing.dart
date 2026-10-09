@@ -36,9 +36,14 @@ List<ServiceRequest> requestsForShift({
 }
 
 /// Priority order for the dispatch board: escalated first, then urgency, then age.
-int compareForDispatch(ServiceRequest a, ServiceRequest b, DateTime now) {
-  final aEsc = a.isEscalated(now) ? 0 : 1;
-  final bEsc = b.isEscalated(now) ? 0 : 1;
+int compareForDispatch(
+  ServiceRequest a,
+  ServiceRequest b,
+  DateTime now, [
+  Map<RequestPriority, Duration>? thresholds,
+]) {
+  final aEsc = a.isEscalated(now, thresholds) ? 0 : 1;
+  final bEsc = b.isEscalated(now, thresholds) ? 0 : 1;
   if (aEsc != bEsc) return aEsc.compareTo(bEsc);
   final pri = b.priority.index.compareTo(a.priority.index);
   if (pri != 0) return pri;

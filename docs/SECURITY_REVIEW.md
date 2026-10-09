@@ -1,36 +1,39 @@
 # Security and performance review
 
-Reviewed against the Supabase advisors on the Premium Command project after migration `0006`, and against the rules in the database migrations.
+Reviewed against the Supabase advisors and the migration rules. Migration `0007` and the function fix that followed it closed the open items listed in the previous review.
 
 ## Checked
 
 | Area | Result |
 |---|---|
 | Anonymous access to RPC functions | None. Every write function is revoked from `anon` and `public`. |
-| Signed-in access to security-definer functions | Intentional. These are the RPC entry points, plus helpers that RLS calls (`is_venue_member`, `has_permission`). The advisor flags them and they cannot be avoided. |
-| Direct status writes | Revoked for events, service requests, suite state, culinary batches, BEO revisions, timeline status, closeouts, and inspections. Changes go through the functions. |
-| Cross-tenant reads | Every venue-scoped table has an RLS policy based on membership. A rolled-back test confirmed a member of one venue cannot see another venue's event. |
-| Service-role key in the app | None. The client only reads `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` from build-time defines. |
-| Demo bypass | Demo sign-in is shown only when no backend is configured. |
-| Revision immutability | BEO revisions have no client insert, update, or delete grant. Approval supersedes by status, never by overwrite. |
+| Signed-in access to security-definer functions | Intentional. These are the RPC entry points, plus helpers that RLS calls (`is_venue_member`, `has_permission`, `in_department`). The advisor flags them and they cannot be avoided. |
+| Direct status writes | Revoked. Events, service requests, suite state, culinary batches, BEO revisions, timeline status, closeouts, inspections, and task rows all change only through functions. |
+| Cross-tenant reads | Every venue-scoped table has an RLS policy based on membership. `supabase/tests/rls_and_rules.sql` checks that a member of one venue cannot see another venue's event. |
+| Department-level work | Only people in the request's department can accept, start, complete, block, or reject a department-level request. Managers can reassign. |
+| Task status | Set only through `set_task_status`. Reopening needs a manager. A task flagged by a BEO revision cannot be completed until its department acknowledges the revision. |
+| BEO revisions | Immutable. Approval supersedes the old revision and notifies everyone whose department changed. |
 | Audit trail | Triggers record status and state changes for service requests, BEO revisions, suites, culinary batches, timeline items, inspections, and closeouts. Free-text content is not copied. |
+| Evidence photos | Private `evidence` bucket. Read and write are limited to members of the venue that owns the path. Files are capped at 5 MB and limited to JPEG, PNG, or WebP. Viewing uses short-lived signed links. |
+| Service-role key in the app | None. The client reads only `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` from build-time defines. |
+| Demo bypass | Demo sign-in is shown only when no backend is configured. |
 | Performance | `auth.uid()` evaluated once per statement. Write policies split per command. Indexes added on hot foreign keys. |
+
+## Defects found and fixed in this round
+
+- **Department check silently passed.** `transition_service_request` compared `assigned_user_id = auth.uid()` directly. For a department-level request that comparison is NULL, and `NULL OR false` is NULL, so the `IF NOT ...` check did not raise. Any operator could act on another department's request. Fixed with `coalesce` in migration `0007`, and the rule test now catches it.
 
 ## Accepted
 
-- **Unused-index and unindexed-foreign-key notices** (INFO). The project is new and has little data. Indexes were added only where a hot query needs them.
+- **Unused-index and unindexed-foreign-key notices** (INFO). The project is new and has little data.
 - **Authenticated-callable definer functions.** Intended. Each one checks membership and permission before acting.
 
-## Open
+## Still open
 
-These are real gaps. They are not fixed yet.
+1. **Push notifications are not implemented.** They need Firebase Cloud Messaging or APNs, plus web push keys. These are platform configuration decisions and credentials that have not been provided. In-app notifications work.
+2. **Department membership has no admin screen.** It is stored and enforced, but people are assigned by SQL (or the Supabase dashboard) for now. The admin screen needs a user directory, which the app does not have yet.
+3. **Escalation limits are configured per venue, not per category.** Category-level thresholds would need a second dimension in `escalation_rules`.
+4. **The isolation checks are a script, not a CI job.** `supabase/tests/rls_and_rules.sql` runs against a database with the migrations applied. CI has no database credentials, so it does not run there.
+5. **Other venue configuration is not built.** Event types, department names, and service-level targets are fixed in code.
 
-1. **Department-level acceptance is not checked against department membership.** Any staff member with `manage_requests` can accept or work a request assigned only to a department. A suite attendant could act on a banquet request. Fix: store department membership per user and check it in `transition_service_request`.
-2. **Task status changes are not validated on the server.** A holder of `update_tasks` can set any status directly. Only completion is tracked. Fix: move task status into a function with the same rules as the other state machines.
-3. **Notifications for BEO revisions** are not sent. Only announcements notify people. Approval flags the work but tells no one.
-4. **Escalation thresholds are fixed in the app**, not configurable per venue or category.
-5. **Photo evidence** fields exist, but no file storage is wired up.
-6. **Cross-tenant tests** run in one database session with rollback. They are not yet an automated suite run in CI.
-7. **No push notifications.** In-app only.
-
-Each open item needs a decision or a migration before go-live. None is hidden by the current demo behavior.
+Each of these is a decision or a missing credential, not a hidden risk in the current behavior.
