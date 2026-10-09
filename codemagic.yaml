@@ -30,12 +30,12 @@ workflows:
     name: CUTX Premium Command - iOS
     instance_type: mac_mini_m2
     max_build_duration: 90
+    integrations:
+      app_store_connect: Venue Wrangler Wine
     environment:
       ios_signing:
         distribution_type: app_store
         bundle_identifier: app.loungeability.cutxPremiumCommand
-      vars:
-        APP_STORE_APPLE_ID: "REPLACE_WITH_APP_STORE_CONNECT_APP_ID"
       flutter: stable
       xcode: latest
       cocoapods: default
@@ -61,9 +61,6 @@ workflows:
     artifacts:
       - build/ios/ipa/*.ipa
     publishing:
-      app_store_connect:
-        auth: integration
-        submit_to_testflight: true
       email:
         recipients:
           - principal@loungeability.app
