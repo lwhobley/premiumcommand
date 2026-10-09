@@ -1,0 +1,69 @@
+workflows:
+  android-release:
+    name: CUTX Premium Command - Android
+    instance_type: linux_x2
+    max_build_duration: 60
+    environment:
+      flutter: stable
+      groups:
+        - cutx_supabase   # SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY (publishable key only)
+    scripts:
+      - name: Get packages
+        script: flutter pub get
+      - name: Analyze
+        script: flutter analyze
+      - name: Test
+        script: flutter test
+      - name: Build Android app bundle
+        script: |
+          flutter build appbundle --release \
+            --dart-define=SUPABASE_URL=$SUPABASE_URL \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY
+    artifacts:
+      - build/app/outputs/bundle/release/*.aab
+    publishing:
+      email:
+        recipients:
+          - principal@loungeability.app
+
+  ios-release:
+    name: CUTX Premium Command - iOS
+    instance_type: mac_mini_m2
+    max_build_duration: 90
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: app.loungeability.cutxPremiumCommand
+      vars:
+        APP_STORE_APPLE_ID: "REPLACE_WITH_APP_STORE_CONNECT_APP_ID"
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      groups:
+        - cutx_supabase
+    scripts:
+      - name: Get packages
+        script: flutter pub get
+      - name: Set up code signing
+        script: xcode-project use-profiles
+      - name: Install CocoaPods
+        script: find . -name "Podfile" -execdir pod install \;
+      - name: Analyze
+        script: flutter analyze
+      - name: Test
+        script: flutter test
+      - name: Build iOS
+        script: |
+          flutter build ipa --release \
+            --export-method app-store \
+            --dart-define=SUPABASE_URL=$SUPABASE_URL \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+      email:
+        recipients:
+          - principal@loungeability.app
