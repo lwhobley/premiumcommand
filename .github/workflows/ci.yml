@@ -9,9 +9,7 @@ jobs:
   flutter:
     runs-on: ubuntu-latest
     steps:
- Builds without any backend secrets. Real builds pass --dart-define values at deploy time.
-      - name: Build web
-        run: flutter build web- uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - uses: subosito/flutter-action@v2
         with:
@@ -26,6 +24,9 @@ jobs:
       - name: Test
         run: flutter test
 
-      # Builds without any backend secrets. Real builds pass --dart-define values at deploy time.
+      # Builds against the Supabase project using repository secrets (publishable key only).
       - name: Build web
-        run: flutter build web
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: flutter build web --dart-define=SUPABASE_URL=$SUPABASE_URL --dart-define=SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY
