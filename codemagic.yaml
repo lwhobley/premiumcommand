@@ -69,7 +69,7 @@ workflows:
     publishing:
       app_store_connect:
         auth: integration
-        submit_to_testflight: true
+        submit_to_testflight: false   # external beta review needs test info filled in App Store Connect
       email:
         recipients:
           - principal@loungeability.app
