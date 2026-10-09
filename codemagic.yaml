@@ -1,7 +1,7 @@
 workflows:
   android-release:
     name: CUTX Premium Command - Android
-    instance_type: linux_x2
+    instance_type: linux
     max_build_duration: 60
     environment:
       flutter: stable
