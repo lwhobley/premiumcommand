@@ -4,6 +4,7 @@ import '../../beo/domain/beo.dart';
 import '../../events/domain/readiness.dart';
 import '../../staffing/domain/staffing.dart';
 import '../../suites/domain/suite.dart';
+import '../../suites/domain/suite_order.dart';
 
 /// Everything about one event's BEO: the document, every revision, and who has acknowledged the current one.
 class BeoBundle {
@@ -151,6 +152,52 @@ class PlanningRepository {
           'updated_at': DateTime.now().toUtc().toIso8601String(),
         })
         .eq('id', assignmentId);
+  }
+
+  // ---- Suite orders --------------------------------------------------------
+
+  Future<List<SuiteOrder>> listSuiteOrders(String eventId) async {
+    final rows = await _client
+        .from('suite_orders')
+        .select()
+        .eq('event_id', eventId);
+    return rows.cast<Map<String, dynamic>>().map(SuiteOrder.fromJson).toList();
+  }
+
+  /// Creates or replaces the order. Pass version 0 when there is no order yet.
+  /// The database returns a confirmed order to draft when it is edited.
+  Future<void> saveSuiteOrder(
+    String assignmentId, {
+    required List<SuiteOrderItem> items,
+    required DateTime? deliverAt,
+    required String notes,
+    required int expectedVersion,
+  }) async {
+    await _client.rpc<Map<String, dynamic>>(
+      'save_suite_order',
+      params: {
+        'p_assignment': assignmentId,
+        'p_items': [for (final item in items) item.toJson()],
+        'p_deliver_at': deliverAt?.toUtc().toIso8601String(),
+        'p_notes': notes,
+        'p_expected_version': expectedVersion,
+      },
+    );
+  }
+
+  Future<void> setSuiteOrderStatus(
+    String orderId,
+    SuiteOrderStatus to,
+    int expectedVersion,
+  ) async {
+    await _client.rpc<Map<String, dynamic>>(
+      'set_suite_order_status',
+      params: {
+        'p_order': orderId,
+        'p_to': to.code,
+        'p_expected_version': expectedVersion,
+      },
+    );
   }
 
   // ---- Staffing ------------------------------------------------------------
