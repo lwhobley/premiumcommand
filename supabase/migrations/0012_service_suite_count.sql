@@ -8,9 +8,9 @@ alter table public.venues
 -- Do not create a venue or infer any suite names from the count.
 update public.venues
    set service_suite_count = 26
- where name in ('Credit Union of Texas Event Center', 'CUTX Event Center')
+ where name in ('Credit Union of Texas Event Center', 'CUTX Event Center', 'CUTX')
    and (select count(*) from public.venues
-         where name in ('Credit Union of Texas Event Center', 'CUTX Event Center')) = 1;
+         where name in ('Credit Union of Texas Event Center', 'CUTX Event Center', 'CUTX')) = 1;
 
 create or replace function public.set_service_suite_count(
   p_venue uuid,

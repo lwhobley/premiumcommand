@@ -2,7 +2,7 @@
 
 Reviewed against the Supabase advisors and the migration rules. Migration `0007` and the function fix that followed it closed the open items listed in the previous review.
 
-An additional full review on October 14, 2026 found cross-venue child references, workflow insert bypasses, shared-device cache leaks, and offline retry risks. Migrations `0015`–`0019` and the client changes in this branch address those findings. They have not yet been applied or checked against a connected database; the checks below describe the earlier review, not a new production verification.
+An additional full review on October 14, 2026 found cross-venue child references, workflow insert bypasses, shared-device cache leaks, and offline retry risks. Migrations `0015`–`0020` and the client changes address those findings. They were applied to the Premium Command Supabase project on October 14, 2026 and the rolled-back SQL checks completed without errors. A real-device push test remains open.
 
 ## Checked
 

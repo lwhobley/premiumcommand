@@ -7,7 +7,7 @@
 alter table public.venue_spaces
   add constraint venue_spaces_venue_id_id_key unique (venue_id, id);
 
-create table venue_space_floor_plans (
+create table if not exists venue_space_floor_plans (
   id uuid primary key default gen_random_uuid(),
   venue_id uuid not null references venues(id) on delete cascade,
   venue_space_id uuid not null,
@@ -25,12 +25,31 @@ create table venue_space_floor_plans (
     references public.venue_spaces(venue_id, id) on delete cascade
 );
 
+-- Early Floor Plan Studio prototypes created this table with only a
+-- venue_space_id foreign key. Tighten those installations as well.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+     where conrelid = 'public.venue_space_floor_plans'::regclass
+       and conname = 'venue_space_floor_plans_venue_id_venue_space_id_fkey'
+  ) then
+    alter table public.venue_space_floor_plans
+      add constraint venue_space_floor_plans_venue_id_venue_space_id_fkey
+      foreign key (venue_id, venue_space_id)
+      references public.venue_spaces(venue_id, id) on delete cascade;
+  end if;
+end;
+$$;
+
 alter table venue_space_floor_plans enable row level security;
 grant select, insert, update, delete on public.venue_space_floor_plans to authenticated;
 
+drop policy if exists venue_space_floor_plans_read on venue_space_floor_plans;
 create policy venue_space_floor_plans_read on venue_space_floor_plans for select to authenticated
   using (public.is_venue_member(venue_id));
 
+drop policy if exists venue_space_floor_plans_write on venue_space_floor_plans;
 create policy venue_space_floor_plans_write on venue_space_floor_plans for all to authenticated
   using (public.has_permission(venue_id, 'manage_configuration'))
   with check (public.has_permission(venue_id, 'manage_configuration'));
