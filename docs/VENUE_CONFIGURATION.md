@@ -2,7 +2,17 @@
 
 The Premium Department at Credit Union of Texas Event Center in Allen, Texas has **26 luxury suites available for service**. This count was supplied by the venue operator on October 14, 2026.
 
-The individual suite identifiers, locations, capacities, and service zones have not been supplied. Do not generate suite profiles or event assignments from the count. Add those records when the venue provides its actual suite list.
+On October 15, 2026 the operator supplied the labeled premium-level plan (`Suites Labeled.pdf`). It identifies **29 suites, numbered 201 through 229**, and the operator confirmed that all 29 are available for service, replacing the earlier count of 26. Suite capacities, locations, and service zones have still not been supplied; leave them blank rather than inferring them from the plan.
+
+Migration `0022_premium_suites_and_orders.sql` creates `Suite 201` through `Suite 229` for the initial venue (identified the same way as migrations `0012` and `0021`) and changes the service count from 26 to 29 unless an operator already set a different value.
+
+### Premium level map and suite orders
+
+Premium Spaces shows a clickable 3D map of the premium level for the selected event. The suite outlines in `lib/features/suites/domain/premium_level_layout.dart` were traced from the plan's vector drawing. The plan has no scale bar, so the map is proportional, not measured, and the seating bowl is illustrative. Suites are matched to the map by the number in their name (`Suite 204` → 204). Colors show each suite's order status for the event; suites not assigned to the event are greyed out.
+
+Tapping a suite opens its panel: suite state, the suite's order, and a link to the event's BEO. Managers (`manage_events`) can add the suite to the event, edit the order (items, quantities, delivery time, notes), and confirm it. Suite staff (`update_tasks`) mark a confirmed order delivered. Editing a confirmed order returns it to draft until it is confirmed again, and delivered orders cannot be changed. Orders are stored in `suite_orders`, one per suite assignment, and are written only through `save_suite_order` and `set_suite_order_status`.
+
+The map page is `web/three/suite_map.html`. It runs in an iframe on web and in a WebView (`webview_flutter`) on iOS and Android. Its script, `web/three/suite_map.js`, is built from `tool/suite_map/scene.js`; the build command is at the top of that file.
 
 Migration `0012_service_suite_count.sql` adds a venue-level count and sets it to 26 if exactly one existing venue is named `Credit Union of Texas Event Center` or `CUTX Event Center`. If that venue has not been created yet, or if the name is ambiguous, set the count to 26 in Administration after identifying the right venue. Administrators can change the count later without changing other venues.
 

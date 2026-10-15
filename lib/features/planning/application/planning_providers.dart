@@ -4,6 +4,7 @@ import '../../auth/application/session_controller.dart';
 
 import '../../staffing/domain/staffing.dart';
 import '../../suites/domain/suite.dart';
+import '../../suites/domain/suite_order.dart';
 import '../data/planning_repository.dart';
 
 final planningRepositoryProvider = Provider<PlanningRepository>((ref) {
@@ -32,6 +33,13 @@ final suitesProvider = FutureProvider.family<List<SuiteAssignment>, String>((
   eventId,
 ) {
   return ref.watch(planningRepositoryProvider).listSuites(eventId);
+});
+
+final suiteOrdersProvider = FutureProvider.family<List<SuiteOrder>, String>((
+  ref,
+  eventId,
+) {
+  return ref.watch(planningRepositoryProvider).listSuiteOrders(eventId);
 });
 
 final staffProvider = FutureProvider.family<List<StaffPosition>, String>((

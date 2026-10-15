@@ -46,6 +46,7 @@ dependencies:
   firebase_messaging: ^16.0.0
   web: ^1.1.1
   timezone: ^0.11.2
+  webview_flutter: ^4.14.1
 
 dev_dependencies:
   flutter_test:
@@ -71,6 +72,9 @@ flutter:
   assets:
     - assets/fonts/NotoSans.ttf
     - assets/images/cutx_event_center_logo.png
+    # The suite map page, loaded by the iOS/Android WebView.
+    - web/three/suite_map.html
+    - web/three/suite_map.js
 
   # To add assets to your application, add an assets section, like this:
   # assets:

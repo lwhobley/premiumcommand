@@ -8,7 +8,9 @@ import '../../../core/widgets/status_chip.dart';
 import '../../auth/application/session_controller.dart';
 import '../../planning/application/planning_providers.dart';
 import '../../planning/presentation/planning_widgets.dart';
+import '../domain/premium_level_layout.dart';
 import '../domain/suite.dart';
+import 'suite_map_section.dart';
 
 /// Premium Spaces: suite board for one event. Each card shows state, attendant, and the next step.
 class PremiumSpacesScreen extends ConsumerWidget {
@@ -38,6 +40,8 @@ class PremiumSpacesScreen extends ConsumerWidget {
       body: ListView(
         children: [
           const EventPicker(),
+          if (eventId != null && session != null)
+            SuiteMapSection(venueId: session.venueId, eventId: eventId),
           if (eventId != null)
             _Board(eventId: eventId, permissions: permissions),
         ],
@@ -134,6 +138,14 @@ class _Board extends ConsumerWidget {
                   onAdvance: () => _advance(context, ref, suite),
                   onEdit: () => _edit(context, ref, suite),
                   onOpenBeo: () => context.push('/beo/event/${suite.eventId}'),
+                  onOpenOrder: planSuiteNumber(suite.suiteName) == null
+                      ? null
+                      : () => showSuitePanel(
+                          context,
+                          venueId: ref.read(sessionProvider)!.venueId,
+                          eventId: eventId,
+                          suiteNumber: planSuiteNumber(suite.suiteName)!,
+                        ),
                 ),
             ],
           ),
@@ -191,6 +203,7 @@ class _SuiteCard extends StatelessWidget {
     required this.onAdvance,
     required this.onEdit,
     required this.onOpenBeo,
+    this.onOpenOrder,
   });
 
   final SuiteAssignment suite;
@@ -199,16 +212,12 @@ class _SuiteCard extends StatelessWidget {
   final VoidCallback onAdvance;
   final VoidCallback onEdit;
   final VoidCallback onOpenBeo;
+  final VoidCallback? onOpenOrder;
 
   @override
   Widget build(BuildContext context) {
     final next = suite.state.next;
-    final color = switch (suite.state) {
-      SuiteState.ready || SuiteState.inService => AppColors.ready,
-      SuiteState.setupInProgress || SuiteState.closing => AppColors.inProgress,
-      SuiteState.notStarted => AppColors.attention,
-      SuiteState.closed => AppColors.neutral,
-    };
+    final color = suiteStateColor(suite.state);
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       clipBehavior: Clip.antiAlias,
@@ -264,6 +273,12 @@ class _SuiteCard extends StatelessWidget {
                     )
                   else
                     const Expanded(child: SizedBox.shrink()),
+                  if (onOpenOrder != null)
+                    IconButton(
+                      tooltip: 'Suite order',
+                      onPressed: onOpenOrder,
+                      icon: const Icon(Icons.room_service_outlined),
+                    ),
                   if (canEdit)
                     IconButton(
                       tooltip: 'Edit details',
