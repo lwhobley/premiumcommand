@@ -10,6 +10,7 @@ import '../../events/domain/readiness.dart';
 import '../../planning/application/planning_providers.dart';
 import '../../planning/presentation/planning_widgets.dart';
 import '../domain/staffing.dart';
+import 'staff_deployment_widgets.dart';
 
 /// Staff Deployment: roster, uncovered positions, CSV import, and event briefings.
 class StaffScreen extends ConsumerWidget {
@@ -37,6 +38,12 @@ class StaffScreen extends ConsumerWidget {
         padding: const EdgeInsets.only(bottom: 96),
         children: [
           const EventPicker(),
+          if (session != null)
+            StaffDirectoryPanel(
+              venueId: session.venueId,
+              eventId: eventId,
+              canManage: canDeploy,
+            ),
           if (eventId != null) ...[
             _Roster(eventId: eventId, canDeploy: canDeploy, venueId: session?.venueId ?? ''),
             _Briefings(eventId: eventId, canPublish: canDeploy, venueId: session?.venueId ?? ''),
@@ -146,6 +153,8 @@ class _Roster extends ConsumerWidget {
     // Linking to a real account is what lets the person see this assignment and get notified.
     final members = await ref.read(venueMembersProvider(venueId).future);
     if (!context.mounted) return;
+    final premiumSpaces = await ref.read(suitesProvider(eventId).future);
+    if (!context.mounted) return;
     final choice = await showDialog<({String name, String? userId})>(
       context: context,
       builder: (dialogContext) => SimpleDialog(
@@ -176,11 +185,20 @@ class _Roster extends ConsumerWidget {
       ),
     );
     if (choice == null || !context.mounted) return;
+    // Where the person works matters as much as who: a premium space, or any other area.
+    final place = choice.name.isEmpty
+        ? const PlaceChoice()
+        : await showPlaceDialog(context, premiumSpaces: premiumSpaces);
+    if (place == null || !context.mounted) return;
     await runWrite(context, () async {
       await ref.read(planningRepositoryProvider).reassignStaff(
             position.id,
             displayName: choice.name,
             userId: choice.userId,
+            suiteAssignmentId: place.suiteAssignmentId,
+            department: place.department,
+            zone: place.zone,
+            station: place.station,
           );
       ref.invalidate(staffProvider(eventId));
     }, success: choice.name.isEmpty ? 'Position is now uncovered.' : 'Assigned to ${choice.name}.');

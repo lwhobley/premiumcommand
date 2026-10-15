@@ -8,6 +8,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../auth/application/session_controller.dart';
 import '../../planning/presentation/planning_widgets.dart';
 import '../application/floor_plan_providers.dart';
+import '../data/floor_plan_pdf.dart';
 import '../domain/floor_plan.dart';
 import 'banquet_area_3d_overview.dart';
 import 'floor_plan_3d_view.dart';
@@ -95,6 +96,8 @@ class FloorPlanStudioScreen extends ConsumerWidget {
                     key: ValueKey(current),
                     venueId: session.venueId,
                     venueSpaceId: current,
+                    spaceName: spaces.firstWhere((s) => s.id == current).name,
+                    venueName: session.venueName,
                     canEdit: canEdit,
                   ),
                 ],
@@ -112,11 +115,15 @@ class _FloorPlanEditor extends ConsumerStatefulWidget {
     super.key,
     required this.venueId,
     required this.venueSpaceId,
+    required this.spaceName,
+    required this.venueName,
     required this.canEdit,
   });
 
   final String venueId;
   final String venueSpaceId;
+  final String spaceName;
+  final String venueName;
   final bool canEdit;
 
   @override
@@ -245,6 +252,18 @@ class _FloorPlanEditorState extends ConsumerState<_FloorPlanEditor> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (existing != null) ...[
+              OutlinedButton.icon(
+                onPressed: () => shareFloorPlanPdf(
+                  spaceName: widget.spaceName,
+                  plan: existing,
+                  venueName: widget.venueName,
+                ),
+                icon: const Icon(Icons.picture_as_pdf_outlined),
+                label: const Text('Export floor plan PDF'),
+              ),
+              const SizedBox(height: 12),
+            ],
             Row(
               children: [
                 Expanded(

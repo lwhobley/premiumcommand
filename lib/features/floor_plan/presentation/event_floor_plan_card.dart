@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../auth/application/session_controller.dart';
 import '../../planning/application/planning_providers.dart';
 import '../../planning/presentation/planning_widgets.dart';
 import '../application/floor_plan_providers.dart';
+import '../data/floor_plan_pdf.dart';
 import '../domain/floor_plan.dart';
 import 'floor_plan_3d_view.dart';
 
@@ -23,6 +25,10 @@ class EventFloorPlanCard extends ConsumerWidget {
     if (!backendAvailable) return const SizedBox.shrink();
     final plansAsync = ref.watch(eventFloorPlansProvider(eventId));
     final beoAsync = ref.watch(beoProvider(eventId));
+    final session = ref.watch(sessionProvider);
+    final spaces = session == null
+        ? const <VenueSpace>[]
+        : ref.watch(venueSpacesProvider(session.venueId)).value ?? const <VenueSpace>[];
 
     return plansAsync.when(
       loading: () => const SizedBox.shrink(),
@@ -57,6 +63,19 @@ class EventFloorPlanCard extends ConsumerWidget {
             const SizedBox(height: 8),
             for (final plan in plans) ...[
               _CapacityWarning(plan: plan, guestCount: effectiveGuests),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  onPressed: () => shareFloorPlanPdf(
+                    spaceName: spaces.where((s) => s.id == plan.venueSpaceId).firstOrNull?.name ?? 'Room',
+                    plan: plan,
+                    venueName: session?.venueName,
+                  ),
+                  icon: const Icon(Icons.picture_as_pdf_outlined),
+                  label: const Text('Export floor plan PDF'),
+                ),
+              ),
+              const SizedBox(height: 8),
               FloorPlan3DView(
                 sceneData: buildFloorPlanSceneData(plan: plan, guestCount: effectiveGuests),
               ),

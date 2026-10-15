@@ -29,6 +29,12 @@ class MoreScreen extends ConsumerWidget {
             ),
           const Divider(),
           ListTile(
+            leading: const Icon(Icons.badge_outlined),
+            title: const Text('My profile'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.go('/profile'),
+          ),
+          ListTile(
             leading: const Icon(Icons.logout),
             title: const Text('Sign out'),
             onTap: () => ref.read(sessionProvider.notifier).signOut(),

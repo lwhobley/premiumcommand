@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:go_router/go_router.dart';
+
 import '../../../core/permissions/app_permission.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/application/session_controller.dart';
@@ -44,6 +46,20 @@ class AdminScreen extends ConsumerWidget {
               subtitle: Text('Time zone: ${session?.timeZone ?? '—'}'),
             ),
           ),
+          if (canConfigure && backendAvailable) ...[
+            const SizedBox(height: 12),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.badge_outlined),
+                title: const Text('Staff accounts'),
+                subtitle: const Text(
+                  'Add staff, reset PINs, deactivate or remove accounts',
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/staff'),
+              ),
+            ),
+          ],
           if (backendAvailable && session != null) ...[
             const SizedBox(height: 20),
             BanquetAreasSection(

@@ -10,6 +10,7 @@ import '../auth/application/session_controller.dart';
 import '../events/application/event_providers.dart';
 import '../events/domain/ops_event.dart';
 import '../events/domain/readiness.dart';
+import 'premium_level_card.dart';
 
 class CommandCenterScreen extends ConsumerWidget {
   const CommandCenterScreen({super.key});
@@ -43,6 +44,14 @@ class CommandCenterScreen extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: 24),
+              if (active.isNotEmpty && ref.watch(sessionProvider) != null) ...[
+                PremiumLevelCard(
+                  venueId: ref.watch(sessionProvider)!.venueId,
+                  eventId: active.first.event.id,
+                  eventName: active.first.event.name,
+                ),
+                const SizedBox(height: 24),
+              ],
               _SectionHeader('Active now'),
               if (active.isEmpty) const _Empty('No active events.'),
           for (final s in active) _SnapshotCard(snapshot: s, timeZone: ref.watch(sessionProvider)?.timeZone ?? 'UTC'),

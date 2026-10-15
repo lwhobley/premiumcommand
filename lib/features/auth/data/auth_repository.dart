@@ -7,6 +7,7 @@ import '../../../core/permissions/app_permission.dart';
 import '../../dispatch/domain/routing.dart';
 import '../../events/domain/readiness.dart';
 import '../domain/app_session.dart';
+import 'device_id.dart';
 
 abstract interface class AuthRepository {
   Future<AppSession?> restoreSession();
@@ -15,6 +16,9 @@ abstract interface class AuthRepository {
     required String email,
     required String password,
   });
+
+  /// Staff sign-in with a 4-digit PIN, checked by the staff-login edge function.
+  Future<AppSession> signInWithPin({required String pin});
 
   Future<void> signOut();
 }
@@ -33,7 +37,16 @@ class DemoAuthRepository implements AuthRepository {
     required String email,
     required String password,
   }) async {
-    throw const AppFailure('Password sign-in needs a Supabase connection. Use demo sign-in.');
+    throw const AppFailure(
+      'Password sign-in needs a Supabase connection. Use demo sign-in.',
+    );
+  }
+
+  @override
+  Future<AppSession> signInWithPin({required String pin}) async {
+    throw const AppFailure(
+      'PIN sign-in needs a Supabase connection. Use demo sign-in.',
+    );
   }
 
   /// Returns a demo session for [role] at the demo venue.
@@ -83,9 +96,45 @@ class SupabaseAuthRepository implements AuthRepository {
     required String email,
     required String password,
   }) async {
-    final response = await _client.auth.signInWithPassword(email: email, password: password);
+    final response = await _client.auth.signInWithPassword(
+      email: email,
+      password: password,
+    );
     final user = response.user;
-    if (user == null) throw const AppFailure('Sign-in failed. Check your email and password.');
+    if (user == null) {
+      throw const AppFailure('Sign-in failed. Check your email and password.');
+    }
+    return _loadSession(user);
+  }
+
+  @override
+  Future<AppSession> signInWithPin({required String pin}) async {
+    final Map<String, dynamic> data;
+    try {
+      final response = await _client.functions.invoke(
+        'staff-login',
+        body: {'pin': pin, 'device_id': await deviceInstallId()},
+      );
+      data = (response.data as Map?)?.cast<String, dynamic>() ?? const {};
+    } on FunctionException catch (error) {
+      final details = error.details;
+      throw AppFailure(
+        details is Map && details['error'] is String
+            ? details['error'] as String
+            : 'Sign-in failed. Try again.',
+      );
+    }
+
+    final tokenHash = data['token_hash'];
+    if (tokenHash is! String) {
+      throw const AppFailure('Sign-in failed. Try again.');
+    }
+    final response = await _client.auth.verifyOTP(
+      type: OtpType.magiclink,
+      tokenHash: tokenHash,
+    );
+    final user = response.user;
+    if (user == null) throw const AppFailure('Sign-in failed. Try again.');
     return _loadSession(user);
   }
 
@@ -97,27 +146,32 @@ class SupabaseAuthRepository implements AuthRepository {
 
   /// Loads venue access from the database. RLS limits these rows to the caller.
   Future<AppSession> _loadSession(User user) async {
-    final rows = (await _client
-            .from('role_assignments')
-            .select('role_code, venue_id, venues(name, time_zone)')
-            .eq('user_id', user.id))
-        .cast<Map<String, dynamic>>();
+    final rows =
+        (await _client
+                .from('role_assignments')
+                .select('role_code, venue_id, venues(name, time_zone)')
+                .eq('user_id', user.id))
+            .cast<Map<String, dynamic>>();
 
     if (rows.isEmpty) {
-      throw const AppFailure('This account has no venue access yet. Contact your administrator.');
+      throw const AppFailure(
+        'This account has no venue access yet. Contact your administrator.',
+      );
     }
 
     // Keep the last selected venue stable when role-assignment row order changes.
     final cached = await _cache.read();
-    final venueIds = rows.map((row) => row['venue_id'] as String).toSet().toList()..sort();
+    final venueIds =
+        rows.map((row) => row['venue_id'] as String).toSet().toList()..sort();
     final cachedVenue = cached != null && cached['user_id'] == user.id
         ? cached['venue_id'] as String?
         : null;
     final venueId = cachedVenue != null && venueIds.contains(cachedVenue)
         ? cachedVenue
         : venueIds.first;
-    final venue = rows.firstWhere((row) => row['venue_id'] == venueId)['venues']
-        as Map<String, dynamic>;
+    final venue =
+        rows.firstWhere((row) => row['venue_id'] == venueId)['venues']
+            as Map<String, dynamic>;
     final roles = rows
         .where((row) => row['venue_id'] == venueId)
         .map((row) => AppRole.fromCode(row['role_code'] as String))
@@ -130,17 +184,21 @@ class SupabaseAuthRepository implements AuthRepository {
         .eq('id', user.id)
         .maybeSingle();
 
-    final deptRows = (await _client
-            .from('department_memberships')
-            .select('department')
-            .eq('venue_id', venueId)
-            .eq('user_id', user.id))
-        .cast<Map<String, dynamic>>();
-    final departments = {for (final r in deptRows) Department.fromCode(r['department'] as String)};
+    final deptRows =
+        (await _client
+                .from('department_memberships')
+                .select('department')
+                .eq('venue_id', venueId)
+                .eq('user_id', user.id))
+            .cast<Map<String, dynamic>>();
+    final departments = {
+      for (final r in deptRows) Department.fromCode(r['department'] as String),
+    };
 
     final session = AppSession(
       userId: user.id,
-      displayName: (profile?['display_name'] as String?) ?? user.email ?? 'Team member',
+      displayName:
+          (profile?['display_name'] as String?) ?? user.email ?? 'Team member',
       venueId: venueId,
       venueName: venue['name'] as String,
       timeZone: venue['time_zone'] as String,

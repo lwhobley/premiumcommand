@@ -11,9 +11,8 @@ import * as THREE from 'three';
 import { OrbitControls } from '../../web/three/package/examples/jsm/controls/OrbitControls.js';
 
 const SCALE = 0.1; // plan points to scene units
-const LEVEL = 6; // height of the premium level above the event floor
+const LEVEL = 6; // height of the premium level above the arena floor
 const SUITE_HEIGHT = 3;
-const BOWL_TIERS = 6;
 
 const container = document.getElementById('app');
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -40,7 +39,6 @@ sun.position.set(30, 90, 50);
 scene.add(sun);
 
 const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x9e9a92, roughness: 0.9 });
-const bowlMaterial = new THREE.MeshStandardMaterial({ color: 0xc9c2b4, roughness: 0.9 });
 const levelMaterial = new THREE.MeshStandardMaterial({ color: 0xe4ded2, roughness: 0.95 });
 
 let center = [610, 415];
@@ -69,10 +67,6 @@ function prism(points, holes, height) {
   const geometry = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: false });
   geometry.rotateX(-Math.PI / 2);
   return geometry;
-}
-
-function lerpOutline(from, to, t) {
-  return from.map((p, i) => [p[0] + (to[i][0] - p[0]) * t, p[1] + (to[i][1] - p[1]) * t]);
 }
 
 function centroid(points) {
@@ -111,7 +105,7 @@ function dispose(object) {
     node.geometry?.dispose();
     const materials = Array.isArray(node.material) ? node.material : [node.material];
     for (const m of materials) {
-      if (!m || m === floorMaterial || m === bowlMaterial || m === levelMaterial) continue;
+      if (!m || m === floorMaterial || m === levelMaterial) continue;
       m.map?.dispose();
       m.dispose();
     }
@@ -128,21 +122,13 @@ function render(payload) {
   hovered = null;
   center = payload.center;
 
-  // Seating bowl as stepped tiers from the event floor up to the premium level.
+  // The arena floor is the open center of the building: flat at ground level, inside the
+  // premium level's inner edge. The premium level wraps around it, raised above the floor.
   const edge = payload.bowlEdge;
-  const floor = edge.map((p) => [
-    center[0] + (p[0] - center[0]) * 0.62,
-    center[1] + (p[1] - center[1]) * 0.5,
-  ]);
-  const floorMesh = new THREE.Mesh(prism(floor, [], 0.2), floorMaterial);
-  group.add(floorMesh);
-  for (let i = 0; i < BOWL_TIERS; i++) {
-    const inner = lerpOutline(floor, edge, i / BOWL_TIERS);
-    const outer = lerpOutline(floor, edge, (i + 1) / BOWL_TIERS);
-    group.add(new THREE.Mesh(prism(outer, [inner], (LEVEL * (i + 1)) / BOWL_TIERS), bowlMaterial));
-  }
-  const floorLabel = labelSprite('Event floor', { size: 2.6, background: 'rgba(0,0,0,0)', color: '#f8f6f1' });
-  floorLabel.position.set(0, 0.6, 0);
+  group.add(new THREE.Mesh(prism(edge, [], 0.2), floorMaterial));
+  const floorLabel = labelSprite('Arena floor', { size: 2.6, background: 'rgba(0,0,0,0)', color: '#f8f6f1' });
+  const [labelX, labelZ] = toXZ(centroid(edge));
+  floorLabel.position.set(labelX, 0.8, labelZ);
   group.add(floorLabel);
 
   const level = new THREE.Mesh(prism(payload.footprint, [edge], 0.6), levelMaterial);

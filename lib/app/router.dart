@@ -2,11 +2,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/push/push_service.dart';
 import '../features/auth/application/session_controller.dart';
+import '../core/permissions/app_permission.dart';
 import '../features/auth/presentation/sign_in_screen.dart';
 import '../features/beo/presentation/beo_screen.dart';
+import '../features/chat/presentation/chat_screen.dart';
 import '../features/events/presentation/event_create_screen.dart';
 import '../features/events/presentation/event_workspace_screen.dart';
+import '../features/staff/presentation/staff_management_screen.dart';
+import '../features/staff/presentation/staff_profile_screen.dart';
 import 'app_section.dart';
 import 'more_screen.dart';
 import 'shell_scaffold.dart';
@@ -17,6 +22,9 @@ const _homePath = '/my-shift';
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = ValueNotifier<int>(0);
   ref.listen(sessionProvider, (previous, next) => refresh.value++);
+  // A tapped alert re-runs the redirect below, which opens the screen it is about.
+  final taps = PushService.routeTaps.listen((_) => refresh.value++);
+  ref.onDispose(taps.cancel);
   ref.onDispose(refresh.dispose);
 
   return GoRouter(
@@ -28,6 +36,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       final onSignIn = location == _signInPath;
 
       if (session == null) return onSignIn ? null : _signInPath;
+      final route = PushService.takePendingRoute();
+      if (route != null) return route;
       if (onSignIn || location == '/') return _homePath;
 
       final section = AppSection.values
@@ -38,6 +48,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
       if (location.startsWith('/beo/event/') &&
           !AppSection.beoManagement.allows(session.permissions)) {
+        return _homePath;
+      }
+      if (location == '/staff' &&
+          !session.can(AppPermission.manageConfiguration)) {
         return _homePath;
       }
       return null;
@@ -67,6 +81,24 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/menu',
             builder: (context, state) => const MoreScreen(),
+          ),
+          GoRoute(
+            path: '/chat/:id',
+            builder: (context, state) =>
+                ChatThreadScreen(conversationId: state.pathParameters['id']!),
+          ),
+          GoRoute(
+            path: '/profile',
+            builder: (context, state) => const StaffProfileScreen(),
+          ),
+          GoRoute(
+            path: '/staff',
+            builder: (context, state) => const StaffManagementScreen(),
+          ),
+          GoRoute(
+            path: '/staff/:id',
+            builder: (context, state) =>
+                StaffProfileScreen(profileId: state.pathParameters['id']!),
           ),
           for (final section in AppSection.values)
             GoRoute(

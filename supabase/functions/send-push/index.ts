@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
   }
 
   const { data: note } = await db.from("notifications").select(
-    "venue_id, user_id, title, body, event_id, kind",
+    "venue_id, user_id, title, body, event_id, kind, conversation_id",
   ).eq("id", notification_id).maybeSingle();
   if (!note) return new Response("Not found", { status: 404 });
   const { data: membership, error: membershipError } = await db.from(
@@ -151,7 +151,11 @@ Deno.serve(async (req) => {
           message: {
             token,
             notification: { title: note.title, body: note.body },
-            data: { kind: note.kind ?? "", event_id: note.event_id ?? "" },
+            data: {
+              kind: note.kind ?? "",
+              event_id: note.event_id ?? "",
+              conversation_id: note.conversation_id ?? "",
+            },
             apns: { payload: { aps: { sound: "default" } } },
           },
         }),

@@ -1,2 +1,6 @@
 [functions.send-push]
 verify_jwt = false
+
+[functions.staff-login]
+# A person signing in has no token yet. The function checks the employee ID and PIN itself.
+verify_jwt = false

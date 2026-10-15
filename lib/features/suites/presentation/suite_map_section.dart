@@ -62,8 +62,9 @@ List<List<double>> _points(Iterable<PlanPoint> points) => [
 ];
 
 /// The payload the 3D page draws: plan outlines plus a color per suite.
-Map<String, Object?> buildSuiteMapScene(
-  Map<String, SuiteMapStatus> statuses, {
+/// Scene with one color per suite number. A suite with no color is drawn muted.
+Map<String, Object?> buildSuiteColorScene(
+  Map<String, Color> colors, {
   String? selected,
 }) => {
   'center': [610.5, 415.2],
@@ -76,13 +77,18 @@ Map<String, Object?> buildSuiteMapScene(
         'id': suite.number,
         'label': suite.number,
         'points': _points(suite.points),
-        'color': _hex(
-          (statuses[suite.number] ?? SuiteMapStatus.unassigned).color,
-        ),
-        'muted': !statuses.containsKey(suite.number),
+        'color': _hex(colors[suite.number] ?? SuiteMapStatus.unassigned.color),
+        'muted': !colors.containsKey(suite.number),
       },
   ],
 };
+
+Map<String, Object?> buildSuiteMapScene(
+  Map<String, SuiteMapStatus> statuses, {
+  String? selected,
+}) => buildSuiteColorScene({
+  for (final entry in statuses.entries) entry.key: entry.value.color,
+}, selected: selected);
 
 /// Clickable 3D premium-level map for the selected event. Hidden when none of
 /// the venue's configured suites match a suite number on the plan.
@@ -169,7 +175,7 @@ class _SuiteMapSectionState extends ConsumerState<SuiteMapSection> {
           ),
           const SizedBox(height: 6),
           const Text(
-            'Traced from the labeled premium-level plan. Proportional, not to scale; the seating bowl is illustrative.',
+            'Traced from the labeled premium-level plan. The arena floor is the open center; proportional, not to scale.',
             style: TextStyle(fontSize: 12, color: AppColors.charcoalMuted),
           ),
         ],

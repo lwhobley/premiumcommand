@@ -129,7 +129,7 @@ final List<SuiteOutline> premiumLevelSuites = [
   SuiteOutline('229', _suite201.map(_mirror).toList()),
 ];
 
-/// Upper edge of the seating bowl, which the suites face.
+/// Inner edge of the premium level: the outline of the arena floor, which the suites overlook.
 final List<PlanPoint> premiumLevelBowlEdge = [
   (350.0, _northFront),
   (857.8, _northFront),

@@ -15,6 +15,7 @@ import '../features/dispatch/presentation/my_shift_screen.dart';
 import '../features/events/presentation/event_calendar_screen.dart';
 import '../features/events/presentation/event_list_screen.dart';
 import '../features/floor_plan/presentation/floor_plan_studio_screen.dart';
+import '../features/chat/presentation/chat_screen.dart';
 
 /// Primary navigation sections. Routes and nav items are both derived from this list.
 /// A null [permission] means any signed-in user may open the section.
@@ -65,7 +66,7 @@ enum AppSection {
     path: '/staff',
     label: 'Staff Deployment',
     icon: Icons.groups_outlined,
-    permission: AppPermission.deployStaff,
+    permission: AppPermission.viewDeployment,
     phase: 2,
   ),
   liveDispatch(
@@ -96,6 +97,13 @@ enum AppSection {
     permission: null,
     phase: 3,
   ),
+  chat(
+    path: '/chat',
+    label: 'Chat',
+    icon: Icons.chat_bubble_outline,
+    permission: null,
+    phase: 3,
+  ),
   closeout(
     path: '/closeout',
     label: 'Event Closeout & Reports',
@@ -114,7 +122,9 @@ enum AppSection {
     path: '/floor-plan',
     label: 'Floor Plan Studio',
     icon: Icons.view_in_ar_outlined,
-    permission: AppPermission.manageConfiguration,
+    // Anyone with operations access may view plans. Only administrators can edit them,
+    // which the studio enforces with its manage_configuration check.
+    permission: AppPermission.viewOperations,
     phase: 4,
   );
 
@@ -149,6 +159,7 @@ enum AppSection {
       AppSection.banquetsCulinary => const CulinaryScreen(),
       AppSection.inspections => const InspectionsScreen(),
       AppSection.communications => const CommunicationsScreen(),
+      AppSection.chat => const ChatScreen(),
       AppSection.closeout => const CloseoutScreen(),
       AppSection.administration => const AdminScreen(),
       AppSection.floorPlanStudio => const FloorPlanStudioScreen(),

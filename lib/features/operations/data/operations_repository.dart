@@ -206,7 +206,8 @@ class OperationsRepository {
   }
 
   Future<List<AppNotification>> listNotifications() async {
-    final rows = await _client.from('notifications').select().eq('venue_id', _venueId).eq('user_id', _userId ?? '').order('created_at', ascending: false).limit(50);
+    // Chat alerts are shown in the Chat list, not here.
+    final rows = await _client.from('notifications').select().eq('venue_id', _venueId).eq('user_id', _userId ?? '').neq('kind', 'chat').order('created_at', ascending: false).limit(50);
     return rows.cast<Map<String, dynamic>>().map(AppNotification.fromJson).toList();
   }
 

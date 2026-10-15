@@ -7,6 +7,7 @@ import '../../../core/errors/app_failure.dart';
 import '../../../core/permissions/app_permission.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/application/session_controller.dart';
+import '../../staff/presentation/my_assignments_card.dart';
 import '../../events/application/event_providers.dart';
 import '../../events/domain/ops_event.dart';
 import '../application/dispatch_providers.dart';
@@ -85,18 +86,16 @@ class _MyShiftScreenState extends ConsumerState<MyShiftScreen> {
                     .map((s) => s.event)
                     .where((e) => e.status.isActive)
                     .toList();
-                if (active.isEmpty) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Text('No active events right now.', style: TextStyle(color: AppColors.charcoalMuted)),
-                    ),
-                  );
-                }
                 final departments = session.departments;
                 return ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
+                    MyAssignmentsCard(userId: session.userId),
+                    if (active.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text('No active events right now.', style: TextStyle(color: AppColors.charcoalMuted)),
+                      ),
                     for (final event in active)
                       _ShiftSection(
                         event: event,

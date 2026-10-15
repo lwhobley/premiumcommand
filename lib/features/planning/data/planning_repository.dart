@@ -275,11 +275,16 @@ class PlanningRepository {
 
   /// [userId] links the position to an account, which is what lets that person see the assignment
   /// and receive announcements and BEO notifications. Null leaves a typed name unlinked.
+  /// [suiteAssignmentId] places the person in a premium space. [department], [zone], and
+  /// [station] place them anywhere else, including outside their own department.
   Future<void> reassignStaff(
     String staffId, {
     required String displayName,
     String? userId,
     String? suiteAssignmentId,
+    String? department,
+    String? zone,
+    String? station,
   }) async {
     await _client
         .from('event_staff')
@@ -287,6 +292,9 @@ class PlanningRepository {
           'display_name': displayName,
           'user_id': userId,
           'suite_assignment_id': suiteAssignmentId,
+          'department': ?department,
+          'zone': ?zone,
+          'station': ?station,
           'updated_at': DateTime.now().toUtc().toIso8601String(),
         })
         .eq('id', staffId);

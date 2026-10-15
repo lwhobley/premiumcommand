@@ -2,6 +2,7 @@
 /// and are the same values enforced by RLS and the `transition_event` function.
 enum AppPermission {
   viewOperations('view_operations'),
+  viewDeployment('view_deployment'),
   manageEvents('manage_events'),
   approveBeo('approve_beo'),
   cancelOrReopenEvents('cancel_or_reopen_events'),
@@ -50,6 +51,7 @@ const Map<AppRole, Set<AppPermission>> defaultRolePermissions = {
   AppRole.director: {...AppPermission.values},
   AppRole.premiumManager: {
     AppPermission.viewOperations,
+    AppPermission.viewDeployment,
     AppPermission.manageEvents,
     AppPermission.deployStaff,
     AppPermission.updateTasks,
@@ -61,6 +63,7 @@ const Map<AppRole, Set<AppPermission>> defaultRolePermissions = {
   },
   AppRole.banquetCaptain: {
     AppPermission.viewOperations,
+    AppPermission.viewDeployment,
     AppPermission.updateTasks,
     AppPermission.manageBanquets,
     AppPermission.closeOutEvents,
@@ -70,17 +73,20 @@ const Map<AppRole, Set<AppPermission>> defaultRolePermissions = {
   },
   AppRole.suiteAttendant: {
     AppPermission.viewOperations,
+    AppPermission.viewDeployment,
     AppPermission.updateTasks,
     AppPermission.runInspections,
     AppPermission.manageRequests,
   },
   AppRole.runner: {
     AppPermission.viewOperations,
+    AppPermission.viewDeployment,
     AppPermission.updateTasks,
     AppPermission.manageRequests,
   },
   AppRole.culinaryLead: {
     AppPermission.viewOperations,
+    AppPermission.viewDeployment,
     AppPermission.viewCulinary,
     AppPermission.updateTasks,
     AppPermission.manageRequests,
@@ -88,6 +94,7 @@ const Map<AppRole, Set<AppPermission>> defaultRolePermissions = {
   },
   AppRole.beverageLead: {
     AppPermission.viewOperations,
+    AppPermission.viewDeployment,
     AppPermission.updateTasks,
     AppPermission.runInspections,
     AppPermission.manageRequests,
