@@ -23,8 +23,9 @@ Migrations live in `supabase/migrations/` and must be applied in order:
 15. `0018_idempotent_offline_actions.sql`: retry-safe dispatch and task actions with task version checks
 16. `0019_session_bound_push_tokens.sql`: push tokens tied to live Auth sessions
 17. `0020_advisor_hardening.sql`: private trigger functions and distinct floor-plan write policies
+18. `0021_cutx_short_name_seed.sql`: suite count and banquet areas for a venue provisioned as `CUTX`
 
-Migration `0015` rejects existing rows with cross-venue references. Migration `0016` can reject closeouts already signed by the same person in both roles. Investigate and correct these rows before retrying. After applying, run every rolled-back script in `supabase/tests/` against that database. A local PostgreSQL server is required for these checks; Flutter tests do not execute SQL migrations.
+Migration `0011` rejects early floor-plan rows whose `venue_id` differs from their venue space. Migration `0015` rejects existing rows with cross-venue references. Migration `0016` can reject closeouts already signed by the same person in both roles. Investigate and correct these rows before retrying. After applying, run every rolled-back script in `supabase/tests/` against that database. A local PostgreSQL server is required for these checks; Flutter tests do not execute SQL migrations.
 
 Apply with the Supabase CLI against the linked project **(manual)**:
 

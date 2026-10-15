@@ -39,9 +39,9 @@ create policy banquet_areas_delete on public.venue_banquet_areas
 -- names were provided by the venue operator and represent physical spaces.
 with target as (
   select id from public.venues
-   where name in ('Credit Union of Texas Event Center', 'CUTX Event Center', 'CUTX')
+   where name in ('Credit Union of Texas Event Center', 'CUTX Event Center')
      and (select count(*) from public.venues
-           where name in ('Credit Union of Texas Event Center', 'CUTX Event Center', 'CUTX')) = 1
+           where name in ('Credit Union of Texas Event Center', 'CUTX Event Center')) = 1
 ), names(name, space_type) as (
   values ('Main Arena Floor', 'arena_floor'),
          ('Premium Level Lounge', 'premium_lounge')
@@ -56,9 +56,9 @@ select target.id, names.name, names.space_type
 
 with target as (
   select id from public.venues
-   where name in ('Credit Union of Texas Event Center', 'CUTX Event Center', 'CUTX')
+   where name in ('Credit Union of Texas Event Center', 'CUTX Event Center')
      and (select count(*) from public.venues
-           where name in ('Credit Union of Texas Event Center', 'CUTX Event Center', 'CUTX')) = 1
+           where name in ('Credit Union of Texas Event Center', 'CUTX Event Center')) = 1
 ), facts(name, kind, space_count, capacity_per_space, area_square_feet, can_combine, has_full_service_bar) as (
   values
     ('Main Arena Floor', 'arena_floor', 1, 900, 17000, false, null::boolean),
