@@ -9,6 +9,7 @@ import '../../dispatch/domain/service_request.dart';
 import '../../operations/application/operations_providers.dart';
 import '../../planning/application/planning_providers.dart';
 import '../../planning/presentation/planning_widgets.dart';
+import 'banquet_areas_section.dart';
 import 'people_section.dart';
 
 /// Administration: venue details, suite configuration, and the checklist library.
@@ -19,7 +20,9 @@ class AdminScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(sessionProvider);
     final permissions = session?.permissions ?? const <AppPermission>{};
-    final canConfigure = permissions.contains(AppPermission.manageConfiguration);
+    final canConfigure = permissions.contains(
+      AppPermission.manageConfiguration,
+    );
 
     return Scaffold(
       appBar: AppBar(title: const Text('Administration & Configuration')),
@@ -41,35 +44,68 @@ class AdminScreen extends ConsumerWidget {
               subtitle: Text('Time zone: ${session?.timeZone ?? '—'}'),
             ),
           ),
+          if (backendAvailable && session != null) ...[
+            const SizedBox(height: 20),
+            BanquetAreasSection(
+              venueId: session.venueId,
+              canConfigure: canConfigure,
+              canManageEvents: permissions.contains(AppPermission.manageEvents),
+            ),
+          ],
           const SizedBox(height: 20),
           Text('Suites', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           if (!backendAvailable)
-            const Text('Connect a backend to manage suites.', style: TextStyle(color: AppColors.charcoalMuted))
+            const Text(
+              'Connect a backend to manage suites.',
+              style: TextStyle(color: AppColors.charcoalMuted),
+            )
           else if (session == null)
             const SizedBox.shrink()
-          else
+          else ...[
+            _ServiceSuiteCountCard(
+              venueId: session.venueId,
+              canConfigure: canConfigure,
+            ),
+            const SizedBox(height: 8),
             _SuiteList(venueId: session.venueId),
+          ],
           const SizedBox(height: 20),
           if (backendAvailable && session != null && canConfigure) ...[
-            PeopleSection(venueId: session.venueId, currentUserId: session.userId),
+            PeopleSection(
+              venueId: session.venueId,
+              currentUserId: session.userId,
+            ),
             const SizedBox(height: 20),
           ],
-          Text('Escalation limits', style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            'Escalation limits',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const SizedBox(height: 8),
           if (!backendAvailable)
-            const Text('Connect a backend to change escalation limits.',
-                style: TextStyle(color: AppColors.charcoalMuted))
+            const Text(
+              'Connect a backend to change escalation limits.',
+              style: TextStyle(color: AppColors.charcoalMuted),
+            )
           else if (session != null && canConfigure)
             _EscalationEditor(venueId: session.venueId)
           else
-            const Text('Only managers can change escalation limits.',
-                style: TextStyle(color: AppColors.charcoalMuted)),
+            const Text(
+              'Only managers can change escalation limits.',
+              style: TextStyle(color: AppColors.charcoalMuted),
+            ),
           const SizedBox(height: 20),
-          Text('Checklist library', style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            'Checklist library',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const SizedBox(height: 8),
           if (!backendAvailable)
-            const Text('Connect a backend to view checklists.', style: TextStyle(color: AppColors.charcoalMuted))
+            const Text(
+              'Connect a backend to view checklists.',
+              style: TextStyle(color: AppColors.charcoalMuted),
+            )
           else
             const _TemplateList(),
         ],
@@ -77,11 +113,20 @@ class AdminScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _addSuite(BuildContext context, WidgetRef ref, String venueId) async {
-    final draft = await showDialog<_SuiteDraft>(context: context, builder: (_) => const _SuiteDialog());
+  Future<void> _addSuite(
+    BuildContext context,
+    WidgetRef ref,
+    String venueId,
+  ) async {
+    final draft = await showDialog<_SuiteDraft>(
+      context: context,
+      builder: (_) => const _SuiteDialog(),
+    );
     if (draft == null || !context.mounted) return;
     await runWrite(context, () async {
-      await ref.read(planningRepositoryProvider).addVenueSuite(
+      await ref
+          .read(planningRepositoryProvider)
+          .addVenueSuite(
             venueId: venueId,
             name: draft.name,
             location: draft.location,
@@ -90,6 +135,75 @@ class AdminScreen extends ConsumerWidget {
           );
       ref.invalidate(venueSuitesProvider(venueId));
     }, success: 'Suite added.');
+  }
+}
+
+class _ServiceSuiteCountCard extends ConsumerWidget {
+  const _ServiceSuiteCountCard({
+    required this.venueId,
+    required this.canConfigure,
+  });
+
+  final String venueId;
+  final bool canConfigure;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final count = ref.watch(serviceSuiteCountProvider(venueId));
+    final profiles = ref.watch(venueSuitesProvider(venueId));
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.meeting_room_outlined),
+        title: count.when(
+          loading: () => const Text('Loading suite service count…'),
+          error: (_, _) => const Text('Suite service count unavailable'),
+          data: (value) => Text(
+            value == null
+                ? 'Suite service count not set'
+                : '$value luxury suites available for service',
+          ),
+        ),
+        subtitle: profiles.when(
+          loading: () => null,
+          error: (_, _) => null,
+          data: (list) => Text('${list.length} suite profiles configured'),
+        ),
+        trailing: canConfigure ? const Icon(Icons.edit_outlined) : null,
+        onTap: canConfigure
+            ? () => _editCount(context, ref, count.value)
+            : null,
+      ),
+    );
+  }
+
+  Future<void> _editCount(
+    BuildContext context,
+    WidgetRef ref,
+    int? current,
+  ) async {
+    final entered = await showDialog<String>(
+      context: context,
+      builder: (_) => _MinutesDialog(
+        title: 'Luxury suites available for service',
+        initial: current?.toString() ?? '',
+      ),
+    );
+    if (entered == null || !context.mounted) return;
+    final count = int.tryParse(entered);
+    if (count == null || count < 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Enter a whole number of suites, zero or greater.'),
+        ),
+      );
+      return;
+    }
+    await runWrite(context, () async {
+      await ref
+          .read(planningRepositoryProvider)
+          .setServiceSuiteCount(venueId, count);
+      ref.invalidate(serviceSuiteCountProvider(venueId));
+    }, success: 'Suite service count updated.');
   }
 }
 
@@ -112,7 +226,9 @@ class _EscalationEditor extends ConsumerWidget {
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
                 title: Text(p.label),
-                subtitle: Text('Escalates after ${map[p]!.inMinutes} minutes without acknowledgment'),
+                subtitle: Text(
+                  'Escalates after ${map[p]!.inMinutes} minutes without acknowledgment',
+                ),
                 trailing: const Icon(Icons.edit_outlined),
                 onTap: () async {
                   final text = await showDialog<String>(
@@ -126,12 +242,18 @@ class _EscalationEditor extends ConsumerWidget {
                   final minutes = int.tryParse(text);
                   if (minutes == null || minutes < 1 || minutes > 1440) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Enter whole minutes between 1 and 1440.')),
+                      const SnackBar(
+                        content: Text(
+                          'Enter whole minutes between 1 and 1440.',
+                        ),
+                      ),
                     );
                     return;
                   }
                   await runWrite(context, () async {
-                    await ref.read(dispatchRepositoryProvider).setEscalationThreshold(venueId, p, minutes);
+                    await ref
+                        .read(dispatchRepositoryProvider)
+                        .setEscalationThreshold(venueId, p, minutes);
                     ref.invalidate(escalationThresholdsProvider);
                   }, success: '${p.label} escalation set to $minutes minutes.');
                 },
@@ -172,8 +294,14 @@ class _MinutesDialogState extends State<_MinutesDialog> {
         autofocus: true,
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-        FilledButton(onPressed: () => Navigator.pop(context, _controller.text.trim()), child: const Text('Save')),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _controller.text.trim()),
+          child: const Text('Save'),
+        ),
       ],
     );
   }
@@ -191,7 +319,12 @@ class _SuiteList extends ConsumerWidget {
       loading: () => const LinearProgressIndicator(),
       error: (error, _) => Text('$error'),
       data: (list) {
-        if (list.isEmpty) return const Text('No suites yet.', style: TextStyle(color: AppColors.charcoalMuted));
+        if (list.isEmpty) {
+          return const Text(
+            'No suites yet.',
+            style: TextStyle(color: AppColors.charcoalMuted),
+          );
+        }
         return Column(
           children: [
             for (final s in list)
@@ -199,11 +332,15 @@ class _SuiteList extends ConsumerWidget {
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
                   title: Text(s['name'] as String),
-                  subtitle: Text([
-                    if ((s['location'] as String?)?.isNotEmpty ?? false) s['location'] as String,
-                    if ((s['service_zone'] as String?)?.isNotEmpty ?? false) 'Zone ${s['service_zone']}',
-                    if (s['capacity'] != null) 'Capacity ${s['capacity']}',
-                  ].join(' · ')),
+                  subtitle: Text(
+                    [
+                      if ((s['location'] as String?)?.isNotEmpty ?? false)
+                        s['location'] as String,
+                      if ((s['service_zone'] as String?)?.isNotEmpty ?? false)
+                        'Zone ${s['service_zone']}',
+                      if (s['capacity'] != null) 'Capacity ${s['capacity']}',
+                    ].join(' · '),
+                  ),
                 ),
               ),
           ],
@@ -235,8 +372,10 @@ class _TemplateList extends ConsumerWidget {
                     ListTile(
                       dense: true,
                       title: Text(item.label),
-                      subtitle: Text('${item.responseType.replaceAll('_', ' ')}'
-                          '${item.requiresManagerApproval ? ' · needs manager approval' : ''}'),
+                      subtitle: Text(
+                        '${item.responseType.replaceAll('_', ' ')}'
+                        '${item.requiresManagerApproval ? ' · needs manager approval' : ''}',
+                      ),
                     ),
                 ],
               ),
@@ -248,7 +387,12 @@ class _TemplateList extends ConsumerWidget {
 }
 
 class _SuiteDraft {
-  const _SuiteDraft({required this.name, required this.location, required this.zone, this.capacity});
+  const _SuiteDraft({
+    required this.name,
+    required this.location,
+    required this.zone,
+    this.capacity,
+  });
 
   final String name;
   final String location;
@@ -286,18 +430,39 @@ class _SuiteDialogState extends State<_SuiteDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: _name, decoration: InputDecoration(labelText: 'Suite name', errorText: _error)),
+            TextField(
+              controller: _name,
+              decoration: InputDecoration(
+                labelText: 'Suite name',
+                errorText: _error,
+              ),
+            ),
             const SizedBox(height: 10),
-            TextField(controller: _location, decoration: const InputDecoration(labelText: 'Location')),
+            TextField(
+              controller: _location,
+              decoration: const InputDecoration(labelText: 'Location'),
+            ),
             const SizedBox(height: 10),
-            TextField(controller: _zone, decoration: const InputDecoration(labelText: 'Service zone')),
+            TextField(
+              controller: _zone,
+              decoration: const InputDecoration(labelText: 'Service zone'),
+            ),
             const SizedBox(height: 10),
-            TextField(controller: _capacity, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Capacity (optional)')),
+            TextField(
+              controller: _capacity,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Capacity (optional)',
+              ),
+            ),
           ],
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
         FilledButton(
           onPressed: () {
             if (_name.text.trim().isEmpty) {
@@ -310,12 +475,15 @@ class _SuiteDialogState extends State<_SuiteDialog> {
               setState(() => _error = 'Capacity must be a whole number.');
               return;
             }
-            Navigator.pop(context, _SuiteDraft(
-              name: _name.text.trim(),
-              location: _location.text.trim(),
-              zone: _zone.text.trim(),
-              capacity: capacity,
-            ));
+            Navigator.pop(
+              context,
+              _SuiteDraft(
+                name: _name.text.trim(),
+                location: _location.text.trim(),
+                zone: _zone.text.trim(),
+                capacity: capacity,
+              ),
+            );
           },
           child: const Text('Add'),
         ),

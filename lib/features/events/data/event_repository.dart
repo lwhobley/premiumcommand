@@ -16,7 +16,8 @@ abstract interface class EventRepository {
 
   Future<List<EventTask>> listTasks(String eventId);
 
-  Future<EventTask> setTaskStatus(String taskId, TaskStatus status);
+  Future<EventTask> setTaskStatus(String taskId, TaskStatus status,
+      {int? expectedVersion, String? actionId});
 
   /// Adds template tasks the event does not have yet. Returns how many were added.
   Future<int> generateTasks(String eventId);
@@ -141,7 +142,8 @@ class DemoEventRepository implements EventRepository {
   }
 
   @override
-  Future<EventTask> setTaskStatus(String taskId, TaskStatus status) async {
+  Future<EventTask> setTaskStatus(String taskId, TaskStatus status,
+      {int? expectedVersion, String? actionId}) async {
     final index = _tasks.indexWhere((task) => task.id == taskId);
     if (index < 0) throw const AppFailure('Task not found.');
     final updated = _tasks[index].copyWith(status: status);
@@ -155,25 +157,27 @@ class DemoEventRepository implements EventRepository {
 }
 
 class SupabaseEventRepository implements EventRepository {
-  SupabaseEventRepository(this._client);
+  SupabaseEventRepository(this._client, this._venueId);
 
   final SupabaseClient _client;
+  final String _venueId;
 
   @override
   Future<List<OpsEvent>> listEvents() async {
-    final rows = await _client.from('events').select().order('service_start');
+    final rows = await _client.from('events').select().eq('venue_id', _venueId).order('service_start');
     return rows.cast<Map<String, dynamic>>().map(OpsEvent.fromJson).toList();
   }
 
   @override
   Future<OpsEvent> getEvent(String eventId) async {
-    final row = await _client.from('events').select().eq('id', eventId).single();
+    final row = await _client.from('events').select().eq('venue_id', _venueId).eq('id', eventId).single();
     return OpsEvent.fromJson(row);
   }
 
   @override
   Future<OpsEvent> createEvent(OpsEvent draft) async {
-    final row = await _client.from('events').insert(draft.toInsertJson()).select().single();
+    final row = await _client.rpc<Map<String, dynamic>>('create_event_with_tasks',
+        params: {'p_draft': draft.toInsertJson()});
     return OpsEvent.fromJson(row);
   }
 
@@ -189,21 +193,28 @@ class SupabaseEventRepository implements EventRepository {
 
   @override
   Future<List<EventTask>> listTasks(String eventId) async {
-    final rows = await _client.from('event_tasks').select().eq('event_id', eventId);
+    final rows = await _client.from('event_tasks').select().eq('venue_id', _venueId).eq('event_id', eventId);
     return rows.cast<Map<String, dynamic>>().map(EventTask.fromJson).toList();
   }
 
   @override
   Future<int> generateTasks(String eventId) async {
-    return _client.rpc<int>('generate_event_tasks', params: {'p_event': eventId});
+    // create_event_with_tasks already generated the initial set atomically.
+    return 0;
   }
 
   @override
-  Future<EventTask> setTaskStatus(String taskId, TaskStatus status) async {
+  Future<EventTask> setTaskStatus(String taskId, TaskStatus status,
+      {int? expectedVersion, String? actionId}) async {
     // set_task_status enforces the rules: reopen needs a manager, and a BEO-flagged task needs acknowledgment.
-    final row = await _client.rpc<Map<String, dynamic>>('set_task_status', params: {
+    if (expectedVersion == null || actionId == null) {
+      throw const AppFailure('Task version or action ID is missing. Refresh and try again.');
+    }
+    final row = await _client.rpc<Map<String, dynamic>>('set_task_status_once', params: {
+      'p_action': actionId,
       'p_task': taskId,
       'p_status': status.code,
+      'p_expected_version': expectedVersion,
     });
     return EventTask.fromJson(row);
   }

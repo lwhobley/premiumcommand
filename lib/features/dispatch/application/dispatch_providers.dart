@@ -15,10 +15,11 @@ import '../domain/service_request.dart';
 final Map<String, DemoDispatchRepository> _demoDispatch = {};
 
 final dispatchRepositoryProvider = Provider<DispatchRepository>((ref) {
+  final session = ref.watch(sessionProvider);
   if (AppConfig.hasSupabase) {
     return SupabaseDispatchRepository(Supabase.instance.client, ref.watch(offlineCacheProvider));
   }
-  final venueId = ref.watch(sessionProvider)?.venueId ?? 'demo-venue';
+  final venueId = session?.venueId ?? 'demo-venue';
   return _demoDispatch.putIfAbsent(venueId, () => DemoDispatchRepository(venueId: venueId));
 });
 
@@ -101,6 +102,7 @@ class DispatchActions {
     );
     if (!decision.allowed) throw AppFailure(decision.reason ?? 'This change is not allowed.');
 
+    final actionId = newClientRequestId();
     try {
       await _repo.transition(
         requestId: request.id,
@@ -109,6 +111,7 @@ class DispatchActions {
         note: note,
         department: department,
         userId: userId,
+        actionId: actionId,
       );
     } catch (error) {
       if (!isNetworkError(error)) rethrow;
@@ -121,7 +124,7 @@ class DispatchActions {
         'note': note,
         'department': department,
         'user_id': userId,
-      });
+      }, id: actionId);
     }
   }
 }

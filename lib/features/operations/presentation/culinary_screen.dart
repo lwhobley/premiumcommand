@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/permissions/app_permission.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/time/venue_time.dart';
 import '../../../core/widgets/status_chip.dart';
 import '../../auth/application/session_controller.dart';
 import '../../auth/domain/app_session.dart';
@@ -104,7 +105,7 @@ class _TimelineTab extends ConsumerWidget {
                         ]),
                         const SizedBox(height: 4),
                         Text(
-                          '${DateFormat('h:mm a').format(item.scheduledStart)} · ${item.department.label}'
+                          '${DateFormat('h:mm a').format(atVenue(item.scheduledStart, session?.timeZone ?? 'UTC'))} · ${item.department.label}'
                           '${item.assigneeName.isEmpty ? '' : ' · ${item.assigneeName}'}',
                           style: const TextStyle(color: AppColors.charcoalMuted, fontSize: 13),
                         ),
@@ -158,7 +159,7 @@ class _TimelineTab extends ConsumerWidget {
     final session = ref.read(sessionProvider);
     final draft = await showDialog<_TimelineDraft>(
       context: context,
-      builder: (_) => const _TimelineDialog(),
+      builder: (_) => _TimelineDialog(timeZone: session?.timeZone ?? 'UTC'),
     );
     if (draft == null || session == null || !context.mounted) return;
     await runWrite(context, () async {
@@ -231,7 +232,7 @@ class _BatchTab extends ConsumerWidget {
                         Text(
                           [
                             if (b.destination.isNotEmpty) b.destination,
-                            if (b.dueAt != null) 'Due ${DateFormat('h:mm a').format(b.dueAt!)}',
+                            if (b.dueAt != null) 'Due ${DateFormat('h:mm a').format(atVenue(b.dueAt!, session?.timeZone ?? 'UTC'))}',
                             if (b.isLateDelivery()) 'Delivered late',
                             if (b.receivedBy.isNotEmpty) 'Received by ${b.receivedBy}',
                           ].join(' · '),
@@ -300,7 +301,7 @@ class _BatchTab extends ConsumerWidget {
   Future<void> _add(BuildContext context, WidgetRef ref) async {
     final draft = await showDialog<_BatchDraft>(
       context: context,
-      builder: (_) => const _BatchDialog(),
+      builder: (_) => _BatchDialog(timeZone: session?.timeZone ?? 'UTC'),
     );
     if (draft == null || session == null || !context.mounted) return;
     await runWrite(context, () async {
@@ -389,7 +390,8 @@ class _TimelineDraft {
 }
 
 class _TimelineDialog extends StatefulWidget {
-  const _TimelineDialog();
+  const _TimelineDialog({required this.timeZone});
+  final String timeZone;
 
   @override
   State<_TimelineDialog> createState() => _TimelineDialogState();
@@ -430,10 +432,10 @@ class _TimelineDialogState extends State<_TimelineDialog> {
             const SizedBox(height: 10),
             OutlinedButton(
               onPressed: () async {
-                final picked = await pickDateTime(context, _start);
-                if (picked != null) setState(() => _start = picked);
+                final picked = await pickDateTime(context, _start, timeZone: widget.timeZone);
+                if (picked != null && mounted) setState(() => _start = picked);
               },
-              child: Text('Starts ${DateFormat('MMM d, h:mm a').format(_start)}'),
+              child: Text('Starts ${DateFormat('MMM d, h:mm a').format(atVenue(_start, widget.timeZone))} ${widget.timeZone}'),
             ),
           ],
         ),
@@ -451,7 +453,7 @@ class _TimelineDialogState extends State<_TimelineDialog> {
               department: _dept,
               assignee: _assignee.text.trim(),
               start: _start,
-              target: _start,
+              target: null,
             ));
           },
           child: const Text('Add'),
@@ -471,7 +473,8 @@ class _BatchDraft {
 }
 
 class _BatchDialog extends StatefulWidget {
-  const _BatchDialog();
+  const _BatchDialog({required this.timeZone});
+  final String timeZone;
 
   @override
   State<_BatchDialog> createState() => _BatchDialogState();
@@ -508,10 +511,12 @@ class _BatchDialogState extends State<_BatchDialog> {
             const SizedBox(height: 10),
             OutlinedButton(
               onPressed: () async {
-                final picked = await pickDateTime(context, _due ?? DateTime.now().add(const Duration(hours: 1)));
-                if (picked != null) setState(() => _due = picked);
+                final picked = await pickDateTime(context, _due ?? DateTime.now().add(const Duration(hours: 1)),
+                    timeZone: widget.timeZone);
+                if (picked != null && mounted) setState(() => _due = picked);
               },
-              child: Text(_due == null ? 'Set due time' : 'Due ${DateFormat('h:mm a').format(_due!)}'),
+              child: Text(_due == null ? 'Set due time' :
+                  'Due ${DateFormat('h:mm a').format(atVenue(_due!, widget.timeZone))} ${widget.timeZone}'),
             ),
           ],
         ),

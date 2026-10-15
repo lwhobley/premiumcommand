@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../core/time/venue_time.dart';
 import '../../../core/widgets/status_chip.dart';
+import '../../auth/application/session_controller.dart';
 import '../application/event_providers.dart';
 import '../domain/readiness.dart';
 
@@ -15,7 +17,8 @@ class EventCalendarScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final snapshots = ref.watch(eventSnapshotsProvider);
-    final dayFormat = DateFormat('EEEE, MMMM d');
+    final zone = ref.watch(sessionProvider)?.timeZone ?? 'UTC';
+    final dayFormat = DateFormat('EEEE, MMMM d, y');
     final timeFormat = DateFormat('h:mm a');
 
     return Scaffold(
@@ -26,7 +29,7 @@ class EventCalendarScreen extends ConsumerWidget {
         data: (items) {
           final byDay = <String, List<EventSnapshot>>{};
           for (final snapshot in items) {
-            final key = dayFormat.format(snapshot.event.serviceStart);
+            final key = dayFormat.format(atVenue(snapshot.event.serviceStart, zone));
             byDay.putIfAbsent(key, () => []).add(snapshot);
           }
           return ListView(
@@ -44,7 +47,7 @@ class EventCalendarScreen extends ConsumerWidget {
                     child: ListTile(
                       title: Text(snapshot.event.name),
                       subtitle: Text(
-                        '${timeFormat.format(snapshot.event.serviceStart)} – ${timeFormat.format(snapshot.event.serviceEnd)} · ${snapshot.event.type.label}',
+                        '${timeFormat.format(atVenue(snapshot.event.serviceStart, zone))} – ${timeFormat.format(atVenue(snapshot.event.serviceEnd, zone))} $zone · ${snapshot.event.type.label}',
                       ),
                       trailing: StatusChip(
                         label: snapshot.event.status.label,

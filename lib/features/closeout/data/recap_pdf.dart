@@ -1,12 +1,14 @@
-import 'dart:typed_data';
-
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import '../../../core/time/venue_time.dart';
 
 /// Builds the operational recap PDF from the database recap. Financial data is never part of the recap.
-Future<Uint8List> buildRecapPdf(Map<String, dynamic> recap, {required String status}) async {
+Future<Uint8List> buildRecapPdf(Map<String, dynamic> recap,
+    {required String status, required String timeZone}) async {
   final doc = pw.Document();
+  final font = pw.Font.ttf(await rootBundle.load('assets/fonts/NotoSans.ttf'));
   final event = (recap['event'] as Map?)?.cast<String, dynamic>() ?? const {};
   final tasks = (recap['tasks'] as Map?)?.cast<String, dynamic>() ?? const {};
   final requests = (recap['requests'] as Map?)?.cast<String, dynamic>() ?? const {};
@@ -14,7 +16,7 @@ Future<Uint8List> buildRecapPdf(Map<String, dynamic> recap, {required String sta
 
   String fmt(Object? v) => v == null ? '—' : v.toString();
   String when(Object? v) =>
-      v == null ? '—' : DateFormat('EEE MMM d, y h:mm a').format(DateTime.parse(v as String).toLocal());
+      v == null ? '—' : DateFormat('EEE MMM d, y h:mm a').format(atVenue(DateTime.parse(v as String), timeZone));
 
   pw.Widget row(String label, String value) => pw.Padding(
         padding: const pw.EdgeInsets.symmetric(vertical: 3),
@@ -25,6 +27,7 @@ Future<Uint8List> buildRecapPdf(Map<String, dynamic> recap, {required String sta
       );
 
   doc.addPage(pw.Page(
+    theme: pw.ThemeData.withFont(base: font, bold: font),
     margin: const pw.EdgeInsets.all(40),
     build: (context) => pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,

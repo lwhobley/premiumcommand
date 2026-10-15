@@ -43,6 +43,7 @@ class EventTask {
     this.dueAt,
     this.needsReview = false,
     this.reviewReason = '',
+    this.version = 1,
   });
 
   final String id;
@@ -56,6 +57,7 @@ class EventTask {
   /// Set when an approved BEO revision changed this department's work. Cleared by acknowledgment.
   final bool needsReview;
   final String reviewReason;
+  final int version;
 
   bool isOverdueAt(DateTime now) =>
       status != TaskStatus.completed && dueAt != null && dueAt!.isBefore(now);
@@ -71,6 +73,7 @@ class EventTask {
       dueAt: dueAt,
       needsReview: needsReview,
       reviewReason: reviewReason,
+      version: version + 1,
     );
   }
 
@@ -85,6 +88,7 @@ class EventTask {
       dueAt: json['due_at'] == null ? null : DateTime.parse(json['due_at'] as String).toLocal(),
       needsReview: json['needs_review'] as bool? ?? false,
       reviewReason: (json['review_reason'] as String?) ?? '',
+      version: (json['version'] as num?)?.toInt() ?? 1,
     );
   }
 }

@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../core/time/venue_time.dart';
 import '../../../core/widgets/status_chip.dart';
+import '../../auth/application/session_controller.dart';
 import '../application/event_providers.dart';
 
 /// Event Workspace index: every event the session can see, opening into its workspace.
@@ -14,6 +16,7 @@ class EventListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final snapshots = ref.watch(eventSnapshotsProvider);
+    final zone = ref.watch(sessionProvider)?.timeZone ?? 'UTC';
 
     return Scaffold(
       appBar: AppBar(title: const Text('Event Workspace')),
@@ -40,7 +43,7 @@ class EventListScreen extends ConsumerWidget {
                 child: ListTile(
                   title: Text(event.name),
                   subtitle: Text(
-                    '${DateFormat('EEE MMM d, h:mm a').format(event.serviceStart)} · ${event.type.label}',
+                    '${DateFormat('EEE MMM d, h:mm a').format(atVenue(event.serviceStart, zone))} $zone · ${event.type.label}',
                   ),
                   trailing: StatusChip(
                     label: '${(snapshot.overallPercent * 100).round()}% ready',

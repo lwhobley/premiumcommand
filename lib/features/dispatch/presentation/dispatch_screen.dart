@@ -46,7 +46,7 @@ class _DispatchScreenState extends ConsumerState<DispatchScreen> {
     try {
       await action();
     } catch (error) {
-      messenger.showSnackBar(SnackBar(content: Text(userMessageFor(error))));
+      if (mounted) messenger.showSnackBar(SnackBar(content: Text(userMessageFor(error))));
     }
   }
 
@@ -80,6 +80,7 @@ class _DispatchScreenState extends ConsumerState<DispatchScreen> {
           }
           _eventId ??= events.first.id;
           final selected = events.where((e) => e.id == _eventId).firstOrNull ?? events.first;
+          _eventId = selected.id;
           return Column(
             children: [
               Padding(
@@ -111,15 +112,16 @@ class _DispatchScreenState extends ConsumerState<DispatchScreen> {
 
   Future<void> _createRequest() async {
     final draft = await showNewRequestDialog(context);
-    if (draft == null || _eventId == null) return;
+    if (draft == null || !mounted || _eventId == null) return;
+    final eventId = _eventId!;
     await _run(() async {
-      await ref.read(dispatchActionsProvider).create(_eventId!, draft);
+      await ref.read(dispatchActionsProvider).create(eventId, draft);
     });
   }
 
   Future<void> _assign(ServiceRequest request) async {
     final dept = await showAssignDialog(context);
-    if (dept == null) return;
+    if (dept == null || !mounted) return;
     await _run(() => ref.read(dispatchActionsProvider).move(
           request,
           to: RequestStatus.assigned,
@@ -134,7 +136,7 @@ class _DispatchScreenState extends ConsumerState<DispatchScreen> {
       _ => 'Why is this being cancelled?',
     };
     final reason = await showReasonDialog(context, title: title);
-    if (reason == null) return;
+    if (reason == null || !mounted) return;
     await _run(() => ref.read(dispatchActionsProvider).move(request, to: to, note: reason));
   }
 }

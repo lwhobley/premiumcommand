@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/time/venue_time.dart';
 import '../../core/widgets/status_chip.dart';
+import '../auth/application/session_controller.dart';
 import '../events/application/event_providers.dart';
 import '../events/domain/ops_event.dart';
 import '../events/domain/readiness.dart';
@@ -43,11 +45,11 @@ class CommandCenterScreen extends ConsumerWidget {
               const SizedBox(height: 24),
               _SectionHeader('Active now'),
               if (active.isEmpty) const _Empty('No active events.'),
-              for (final s in active) _SnapshotCard(snapshot: s),
+          for (final s in active) _SnapshotCard(snapshot: s, timeZone: ref.watch(sessionProvider)?.timeZone ?? 'UTC'),
               const SizedBox(height: 24),
               _SectionHeader('Upcoming'),
               if (upcoming.isEmpty) const _Empty('No upcoming events.'),
-              for (final s in upcoming) _SnapshotCard(snapshot: s),
+          for (final s in upcoming) _SnapshotCard(snapshot: s, timeZone: ref.watch(sessionProvider)?.timeZone ?? 'UTC'),
             ],
           );
         },
@@ -114,14 +116,15 @@ class _Empty extends StatelessWidget {
 }
 
 class _SnapshotCard extends StatelessWidget {
-  const _SnapshotCard({required this.snapshot});
+  const _SnapshotCard({required this.snapshot, required this.timeZone});
 
   final EventSnapshot snapshot;
+  final String timeZone;
 
   @override
   Widget build(BuildContext context) {
     final event = snapshot.event;
-    final time = DateFormat('EEE MMM d, h:mm a').format(event.serviceStart);
+    final time = DateFormat('EEE MMM d, h:mm a').format(atVenue(event.serviceStart, timeZone));
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),

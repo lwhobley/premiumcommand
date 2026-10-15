@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/permissions/app_permission.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/time/venue_time.dart';
 import '../../auth/application/session_controller.dart';
 import '../../events/domain/readiness.dart';
 import '../../planning/application/planning_providers.dart';
@@ -268,7 +269,7 @@ class _Briefings extends ConsumerWidget {
                             const SizedBox(height: 4),
                             Text(b.body),
                             const SizedBox(height: 4),
-                            Text(DateFormat('MMM d, h:mm a').format(b.createdAt),
+                            Text(DateFormat('MMM d, h:mm a').format(atVenue(b.createdAt, ref.watch(sessionProvider)?.timeZone ?? 'UTC')),
                                 style: const TextStyle(color: AppColors.charcoalMuted, fontSize: 12)),
                             const SizedBox(height: 8),
                             if (b.acknowledgedByMe)

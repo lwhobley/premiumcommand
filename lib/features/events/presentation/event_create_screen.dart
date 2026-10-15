@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/errors/app_failure.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/time/venue_time.dart';
 import '../../auth/application/session_controller.dart';
 import '../application/event_providers.dart';
 import '../domain/ops_event.dart';
@@ -23,10 +24,17 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
   final _guests = TextEditingController(text: '0');
   final _notes = TextEditingController();
   EventType _type = EventType.custom;
-  DateTime _start = DateTime.now().add(const Duration(days: 7));
+  late DateTime _start;
   Duration _duration = const Duration(hours: 4);
   bool _saving = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final zone = ref.read(sessionProvider)?.timeZone ?? 'UTC';
+    _start = atVenue(DateTime.now().add(const Duration(days: 7)), zone);
+  }
 
   @override
   void dispose() {
@@ -49,9 +57,9 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
       context: context,
       initialTime: TimeOfDay.fromDateTime(_start),
     );
-    if (time == null) return;
+    if (time == null || !mounted) return;
     setState(() {
-      _start = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+      _start = DateTime.utc(date.year, date.month, date.day, time.hour, time.minute);
     });
   }
 
@@ -63,14 +71,16 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
     });
     try {
       final venueId = ref.read(sessionProvider)?.venueId ?? '';
+      final zone = ref.read(sessionProvider)?.timeZone ?? 'UTC';
+      final startUtc = venueWallTimeUtc(_start, zone);
       final created = await ref.read(eventActionsProvider).createEvent(
             OpsEvent(
               id: '',
               venueId: venueId,
               name: _name.text.trim(),
               type: _type,
-              serviceStart: _start,
-              serviceEnd: _start.add(_duration),
+              serviceStart: startUtc,
+              serviceEnd: startUtc.add(_duration),
               guaranteedGuests: int.tryParse(_guests.text.trim()) ?? 0,
               managerName: _manager.text.trim(),
               status: EventStatus.draft,
@@ -79,7 +89,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
           );
       if (mounted) context.go('/events/${created.id}');
     } catch (error) {
-      setState(() => _error = userMessageFor(error));
+      if (mounted) setState(() => _error = userMessageFor(error));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -134,8 +144,10 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
               controller: _guests,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: 'Guaranteed guests'),
-              validator: (value) =>
-                  int.tryParse(value?.trim() ?? '') == null ? 'Enter a whole number.' : null,
+              validator: (value) {
+                final count = int.tryParse(value?.trim() ?? '');
+                return count == null || count < 0 ? 'Enter zero or more guests.' : null;
+              },
             ),
             const SizedBox(height: 16),
             TextFormField(

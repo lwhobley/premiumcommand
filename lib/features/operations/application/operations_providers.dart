@@ -1,12 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../auth/application/session_controller.dart';
 
 import '../data/evidence_storage.dart';
 import '../data/operations_repository.dart';
 import '../domain/operations.dart';
 
 final operationsRepositoryProvider = Provider<OperationsRepository>((ref) {
-  return OperationsRepository(Supabase.instance.client);
+  final session = ref.watch(sessionProvider);
+  return OperationsRepository(Supabase.instance.client, session?.venueId ?? '');
 });
 
 final evidenceStorageProvider = Provider<EvidenceStorage>((ref) {

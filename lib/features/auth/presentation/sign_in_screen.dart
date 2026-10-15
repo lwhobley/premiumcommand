@@ -37,7 +37,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           .read(sessionProvider.notifier)
           .signInWithPassword(email: _email.text.trim(), password: _password.text);
     } catch (error) {
-      setState(() => _error = userMessageFor(error));
+      if (mounted) setState(() => _error = userMessageFor(error));
     } finally {
       if (mounted) setState(() => _busy = false);
     }

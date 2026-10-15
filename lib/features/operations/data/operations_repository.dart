@@ -4,9 +4,10 @@ import '../../events/domain/readiness.dart';
 import '../domain/operations.dart';
 
 class OperationsRepository {
-  OperationsRepository(this._client);
+  OperationsRepository(this._client, this._venueId);
 
   final SupabaseClient _client;
+  final String _venueId;
 
   String? get _userId => _client.auth.currentUser?.id;
 
@@ -16,6 +17,7 @@ class OperationsRepository {
     final rows = await _client
         .from('banquet_timeline_items')
         .select()
+        .eq('venue_id', _venueId)
         .eq('event_id', eventId)
         .order('scheduled_start');
     return rows.cast<Map<String, dynamic>>().map(TimelineItem.fromJson).toList();
@@ -56,7 +58,7 @@ class OperationsRepository {
   // ---- Culinary -------------------------------------------------------------
 
   Future<List<MenuItem>> listMenu(String eventId) async {
-    final rows = await _client.from('event_menu_items').select().eq('event_id', eventId).order('course');
+    final rows = await _client.from('event_menu_items').select().eq('venue_id', _venueId).eq('event_id', eventId).order('course');
     return rows.cast<Map<String, dynamic>>().map(MenuItem.fromJson).toList();
   }
 
@@ -82,6 +84,7 @@ class OperationsRepository {
     final rows = await _client
         .from('culinary_batches')
         .select()
+        .eq('venue_id', _venueId)
         .eq('event_id', eventId)
         .order('created_at');
     return rows.cast<Map<String, dynamic>>().map(CulinaryBatch.fromJson).toList();
@@ -120,7 +123,8 @@ class OperationsRepository {
   Future<List<ChecklistTemplate>> listTemplates() async {
     final rows = (await _client
             .from('checklist_templates')
-            .select('id, category, name, checklist_items(id, label, response_type, requires_manager_approval, department, position)')
+            .select('id, venue_id, category, name, checklist_items(id, label, response_type, requires_manager_approval, department, position)')
+            .or('venue_id.is.null,venue_id.eq.$_venueId')
             .order('name'))
         .cast<Map<String, dynamic>>();
     return [
@@ -133,13 +137,13 @@ class OperationsRepository {
               .cast<Map<String, dynamic>>()
               .map(ChecklistItem.fromJson)
               .toList()
-            ..sort((a, b) => a.label.compareTo(b.label)),
+            ..sort((a, b) => a.position.compareTo(b.position)),
         ),
     ];
   }
 
   Future<List<InspectionInstance>> listInspections(String eventId) async {
-    final rows = await _client.from('inspection_instances').select().eq('event_id', eventId).order('created_at');
+    final rows = await _client.from('inspection_instances').select().eq('venue_id', _venueId).eq('event_id', eventId).order('created_at');
     return rows.cast<Map<String, dynamic>>().map(InspectionInstance.fromJson).toList();
   }
 
@@ -169,12 +173,24 @@ class OperationsRepository {
     await _client.rpc<Map<String, dynamic>>('approve_inspection', params: {'p_instance': instanceId});
   }
 
+  Future<List<Map<String, dynamic>>> listInspectionResponses(String instanceId) async {
+    final rows = await _client.from('inspection_responses')
+        .select('passed, numeric_value, text_value, photo_url, checklist_items(label, position, response_type)')
+        .eq('venue_id', _venueId).eq('instance_id', instanceId);
+    final result = rows.cast<Map<String, dynamic>>();
+    result.sort((a, b) =>
+        ((a['checklist_items'] as Map?)?['position'] as num? ?? 0).compareTo(
+            (b['checklist_items'] as Map?)?['position'] as num? ?? 0));
+    return result;
+  }
+
   // ---- Communications -------------------------------------------------------
 
   Future<List<Map<String, dynamic>>> listAnnouncements(String eventId) async {
     final rows = await _client
         .from('event_announcements')
         .select()
+        .eq('venue_id', _venueId)
         .eq('event_id', eventId)
         .order('created_at', ascending: false);
     return rows.cast<Map<String, dynamic>>();
@@ -190,7 +206,7 @@ class OperationsRepository {
   }
 
   Future<List<AppNotification>> listNotifications() async {
-    final rows = await _client.from('notifications').select().order('created_at', ascending: false).limit(50);
+    final rows = await _client.from('notifications').select().eq('venue_id', _venueId).eq('user_id', _userId ?? '').order('created_at', ascending: false).limit(50);
     return rows.cast<Map<String, dynamic>>().map(AppNotification.fromJson).toList();
   }
 
@@ -209,12 +225,12 @@ class OperationsRepository {
   // ---- Closeout -------------------------------------------------------------
 
   Future<Closeout?> loadCloseout(String eventId) async {
-    final row = await _client.from('event_closeouts').select().eq('event_id', eventId).maybeSingle();
+    final row = await _client.from('event_closeouts').select().eq('venue_id', _venueId).eq('event_id', eventId).maybeSingle();
     return row == null ? null : Closeout.fromJson(row);
   }
 
   Future<List<Closeout>> listCloseouts() async {
-    final rows = await _client.from('event_closeouts').select().order('submitted_at', ascending: false);
+    final rows = await _client.from('event_closeouts').select().eq('venue_id', _venueId).order('submitted_at', ascending: false);
     return rows.cast<Map<String, dynamic>>().map(Closeout.fromJson).toList();
   }
 

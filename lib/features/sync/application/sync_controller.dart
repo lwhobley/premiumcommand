@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/failure_kind.dart';
+import '../../../core/errors/app_failure.dart';
 import '../../../core/offline/outbox.dart';
 import '../../auth/application/session_controller.dart';
 import '../../dispatch/application/dispatch_providers.dart';
@@ -40,6 +41,7 @@ class SyncController extends Notifier<SyncState> {
 
   @override
   SyncState build() {
+    ref.listen(sessionProvider, (_, next) => _publish(clearError: true));
     _timer = Timer.periodic(const Duration(seconds: 30), (_) => flush());
     ref.onDispose(() => _timer?.cancel());
     unawaited(_store.load().then((_) {
@@ -51,13 +53,15 @@ class SyncController extends Notifier<SyncState> {
 
   /// Only the signed-in person's queued changes.
   List<OutboxItem> get items {
-    final userId = ref.read(sessionProvider)?.userId;
-    return _store.items.where((i) => i.userId.isEmpty || i.userId == userId).toList();
+    final session = ref.read(sessionProvider);
+    return _store.items.where((i) => i.userId == session?.userId &&
+        (i.venueId == session?.venueId || i.venueId.isEmpty)).toList();
   }
 
   void _publish({String? error, bool clearError = false, bool? syncing}) {
-    final userId = ref.read(sessionProvider)?.userId;
-    final mine = _store.items.where((i) => i.userId.isEmpty || i.userId == userId).toList();
+    final session = ref.read(sessionProvider);
+    final mine = _store.items.where((i) => i.userId == session?.userId &&
+        (i.venueId == session?.venueId || i.venueId.isEmpty)).toList();
     final pending = mine.where((i) => !i.needsReview).length;
     final review = mine.where((i) => i.needsReview).length;
     state = SyncState(
@@ -70,11 +74,14 @@ class SyncController extends Notifier<SyncState> {
 
   /// Saves a write for later. Returns immediately; sending happens in [flush].
   Future<void> enqueue(String kind, Map<String, dynamic> payload, {String? id}) async {
+    final session = ref.read(sessionProvider);
+    if (session == null) throw const AppFailure('Sign in to save this change.');
     final item = OutboxItem(
       id: id ?? _newId(),
       kind: kind,
       payload: payload,
-      userId: ref.read(sessionProvider)?.userId ?? '',
+      userId: session.userId,
+      venueId: session.venueId,
       createdAt: DateTime.now(),
     );
     await _store.add(item);
@@ -86,19 +93,31 @@ class SyncController extends Notifier<SyncState> {
   Future<void> flush() async {
     if (_flushing) return;
     // With nobody signed in there is no valid identity to send under, so nothing leaves the device.
-    final userId = ref.read(sessionProvider)?.userId;
-    if (userId == null) return;
+    final session = ref.read(sessionProvider);
+    if (session == null) return;
     _flushing = true;
     _publish(syncing: true);
     try {
       for (final item in List<OutboxItem>.from(_store.items)) {
+        if (ref.read(sessionProvider)?.userId != session.userId ||
+            ref.read(sessionProvider)?.venueId != session.venueId) {
+          break;
+        }
         if (item.needsReview) continue;
         // Another person's queued work waits for that person; it is never sent under this account.
-        if (item.userId.isNotEmpty && item.userId != userId) continue;
+        if (item.userId != session.userId || item.venueId != session.venueId) continue;
         try {
           await _send(item);
+          if (ref.read(sessionProvider)?.userId != session.userId ||
+              ref.read(sessionProvider)?.venueId != session.venueId) {
+            break;
+          }
           await _store.remove(item.id);
         } catch (error) {
+          if (ref.read(sessionProvider)?.userId != session.userId ||
+              ref.read(sessionProvider)?.venueId != session.venueId) {
+            break;
+          }
           final kind = classifyFailure(error);
           if (kind == FailureKind.offline) {
             await _store.replace(item.copyWith(attempts: item.attempts + 1, lastError: 'Offline'));
@@ -142,11 +161,14 @@ class SyncController extends Notifier<SyncState> {
               note: (p['note'] as String?) ?? '',
               department: p['department'] as String?,
               userId: p['user_id'] as String?,
+              actionId: item.id,
             );
       case outboxSetTaskStatus:
         await ref.read(eventRepositoryProvider).setTaskStatus(
               p['task_id'] as String,
               TaskStatus.fromCode(p['status'] as String),
+              expectedVersion: (p['expected_version'] as num).toInt(),
+              actionId: item.id,
             );
       default:
         throw StateError('Unknown queued change: ${item.kind}');
@@ -156,7 +178,11 @@ class SyncController extends Notifier<SyncState> {
   /// Puts a reviewed item back in the queue. The server re-checks it, so a stale change still fails safely.
   Future<void> retry(String id) async {
     final item = _store.items.where((i) => i.id == id).firstOrNull;
-    if (item == null) return;
+    final session = ref.read(sessionProvider);
+    if (item == null || session == null || item.userId != session.userId ||
+        item.venueId != session.venueId) {
+      return;
+    }
     await _store.replace(item.copyWith(needsReview: false, lastError: ''));
     _publish();
     unawaited(flush());
@@ -164,6 +190,7 @@ class SyncController extends Notifier<SyncState> {
 
   /// Drops a queued change the user chose not to keep.
   Future<void> discard(String id) async {
+    if (!items.any((item) => item.id == id)) return;
     await _store.remove(id);
     _publish();
   }

@@ -46,6 +46,7 @@ abstract interface class DispatchRepository {
     String note = '',
     String? department,
     String? userId,
+    String? actionId,
   });
 }
 
@@ -151,6 +152,7 @@ class DemoDispatchRepository implements DispatchRepository {
     String note = '',
     String? department,
     String? userId,
+    String? actionId,
   }) async {
     final index = _requests.indexWhere((r) => r.id == requestId);
     if (index < 0) throw const AppFailure('Request not found.');
@@ -219,16 +221,25 @@ class SupabaseDispatchRepository implements DispatchRepository {
     // Scoped to the signed-in user so a shared device never shows one person's board to another.
     final key = 'cutx.requests.${_client.auth.currentUser?.id ?? 'anonymous'}.$eventId';
     final cached = await _cache.read(key);
-    if (cached != null) {
-      yield cached.map(ServiceRequest.fromJson).toList();
+    List<ServiceRequest> parseRows(List<Map<String, dynamic>> rows) {
+      final parsed = <ServiceRequest>[];
+      for (final row in rows) {
+        try {
+          parsed.add(ServiceRequest.fromJson(row));
+        } catch (_) {
+          // One unsupported row must not stop the rest of the live board.
+        }
+      }
+      return parsed;
     }
+    yield cached == null ? <ServiceRequest>[] : parseRows(cached);
     try {
       final live = _client
           .from('service_requests')
           .stream(primaryKey: ['id'])
           .eq('event_id', eventId);
       await for (final rows in live) {
-        final list = rows.map(ServiceRequest.fromJson).toList();
+        final list = parseRows(rows);
         await _cache.write(key, [for (final r in list) r.toJson()]);
         yield list;
       }
@@ -258,8 +269,11 @@ class SupabaseDispatchRepository implements DispatchRepository {
     String note = '',
     String? department,
     String? userId,
+    String? actionId,
   }) async {
-    final row = await _client.rpc<Map<String, dynamic>>('transition_service_request', params: {
+    if (actionId == null) throw const AppFailure('Action ID is missing. Refresh and try again.');
+    final row = await _client.rpc<Map<String, dynamic>>('transition_service_request_once', params: {
+      'p_action': actionId,
       'p_request': requestId,
       'p_to': to.code,
       'p_expected_version': expectedVersion,

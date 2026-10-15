@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/errors/app_failure.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/time/venue_time.dart';
+import '../../auth/application/session_controller.dart';
 import '../../events/application/event_providers.dart';
 import '../../events/domain/ops_event.dart';
 import '../application/planning_providers.dart';
@@ -40,6 +42,7 @@ class EventPicker extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final snapshots = ref.watch(eventSnapshotsProvider);
+    final zone = ref.watch(sessionProvider)?.timeZone ?? 'UTC';
     return snapshots.when(
       loading: () => const LinearProgressIndicator(),
       error: (error, _) => Text('$error'),
@@ -70,7 +73,7 @@ class EventPicker extends ConsumerWidget {
               for (final e in events)
                 DropdownMenuItem(
                   value: e.id,
-                  child: Text('${e.name} · ${DateFormat('MMM d, h:mm a').format(e.serviceStart)}',
+                  child: Text('${e.name} · ${DateFormat('MMM d, h:mm a').format(atVenue(e.serviceStart, zone))} $zone',
                       overflow: TextOverflow.ellipsis),
                 ),
             ],
@@ -87,27 +90,30 @@ Future<bool> runWrite(BuildContext context, Future<void> Function() action, {Str
   final messenger = ScaffoldMessenger.of(context);
   try {
     await action();
-    if (success != null) messenger.showSnackBar(SnackBar(content: Text(success)));
+    if (success != null && context.mounted) messenger.showSnackBar(SnackBar(content: Text(success)));
     return true;
   } catch (error) {
-    messenger.showSnackBar(SnackBar(content: Text(userMessageFor(error))));
+    if (context.mounted) messenger.showSnackBar(SnackBar(content: Text(userMessageFor(error))));
     return false;
   }
 }
 
 
 /// Date then time picker. Returns null if cancelled.
-Future<DateTime?> pickDateTime(BuildContext context, DateTime initial) async {
+Future<DateTime?> pickDateTime(BuildContext context, DateTime initial,
+    {String timeZone = 'UTC'}) async {
+  final wall = atVenue(initial, timeZone);
   final date = await showDatePicker(
     context: context,
-    initialDate: initial,
-    firstDate: DateTime.now().subtract(const Duration(days: 30)),
-    lastDate: DateTime.now().add(const Duration(days: 730)),
+    initialDate: wall,
+    firstDate: atVenue(DateTime.now().subtract(const Duration(days: 30)), timeZone),
+    lastDate: atVenue(DateTime.now().add(const Duration(days: 730)), timeZone),
   );
   if (date == null || !context.mounted) return null;
-  final time = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(initial));
+  final time = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(wall));
   if (time == null) return null;
-  return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+  return venueWallTimeUtc(DateTime.utc(date.year, date.month, date.day,
+      time.hour, time.minute), timeZone);
 }
 
 /// True when the app has a backend. Planning screens check this before reading.

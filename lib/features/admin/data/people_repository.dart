@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../auth/application/session_controller.dart';
 
 import '../../../core/permissions/app_permission.dart';
 import '../../events/domain/readiness.dart';
@@ -87,5 +88,6 @@ final peopleRepositoryProvider = Provider<PeopleRepository>((ref) {
 });
 
 final peopleProvider = FutureProvider.family<List<PersonAccess>, String>((ref, venueId) {
+  ref.watch(sessionProvider);
   return ref.watch(peopleRepositoryProvider).list(venueId);
 });

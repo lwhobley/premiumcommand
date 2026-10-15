@@ -5,8 +5,10 @@ import 'package:intl/intl.dart';
 import '../../../core/errors/app_failure.dart';
 import '../../../core/permissions/app_permission.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/time/venue_time.dart';
 import '../../../core/widgets/status_chip.dart';
 import '../../auth/application/session_controller.dart';
+import '../../floor_plan/presentation/event_floor_plan_card.dart';
 import '../application/event_providers.dart';
 import '../domain/event_lifecycle.dart';
 import '../domain/ops_event.dart';
@@ -52,8 +54,9 @@ class _WorkspaceBody extends ConsumerWidget {
     final permissions = session?.permissions ?? const <AppPermission>{};
     final event = snapshot.event;
     final actions = ref.read(eventActionsProvider);
-    final time = DateFormat('EEE MMM d, y · h:mm a').format(event.serviceStart);
-    final end = DateFormat('h:mm a').format(event.serviceEnd);
+    final zone = session?.timeZone ?? 'UTC';
+    final time = DateFormat('EEE MMM d, y · h:mm a').format(atVenue(event.serviceStart, zone));
+    final end = DateFormat('h:mm a').format(atVenue(event.serviceEnd, zone));
 
     return ListView(
       padding: const EdgeInsets.all(20),
@@ -68,7 +71,7 @@ class _WorkspaceBody extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 6),
-        Text('${event.type.label} · $time – $end',
+        Text('${event.type.label} · $time – $end $zone',
             style: const TextStyle(color: AppColors.charcoalMuted)),
         Text('Manager: ${event.managerName.isEmpty ? 'Unassigned' : event.managerName} · '
             'Guaranteed guests: ${event.guaranteedGuests}',
@@ -113,6 +116,8 @@ class _WorkspaceBody extends ConsumerWidget {
                   : null,
             ),
           ),
+        const SizedBox(height: 24),
+        EventFloorPlanCard(eventId: event.id, guaranteedGuests: event.guaranteedGuests),
       ],
     );
   }

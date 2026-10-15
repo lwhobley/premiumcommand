@@ -2,6 +2,8 @@
 
 Reviewed against the Supabase advisors and the migration rules. Migration `0007` and the function fix that followed it closed the open items listed in the previous review.
 
+An additional full review on October 14, 2026 found cross-venue child references, workflow insert bypasses, shared-device cache leaks, and offline retry risks. Migrations `0015`–`0019` and the client changes in this branch address those findings. They have not yet been applied or checked against a connected database; the checks below describe the earlier review, not a new production verification.
+
 ## Checked
 
 | Area | Result |
@@ -11,7 +13,7 @@ Reviewed against the Supabase advisors and the migration rules. Migration `0007`
 | Direct status writes | Revoked. Events, service requests, suite state, culinary batches, BEO revisions, timeline status, closeouts, inspections, and task rows all change only through functions. |
 | Cross-tenant reads | Every venue-scoped table has an RLS policy based on membership. `supabase/tests/rls_and_rules.sql` checks that a member of one venue cannot see another venue's event. |
 | Department-level work | Only people in the request's department can accept, start, complete, block, or reject a department-level request. Managers can reassign. |
-| Task status | Set only through `set_task_status`. Reopening needs a manager. A task flagged by a BEO revision cannot be completed until its department acknowledges the revision. |
+| Task status | Set through the version-checked `set_task_status_once` RPC. Reopening needs a manager. A task flagged by a BEO revision cannot be completed until its department acknowledges the revision. |
 | BEO revisions | Immutable. Approval supersedes the old revision and notifies everyone whose department changed. |
 | Audit trail | Triggers record status and state changes for service requests, BEO revisions, suites, culinary batches, timeline items, inspections, and closeouts. Free-text content is not copied. |
 | Evidence photos | Private `evidence` bucket. Read and write are limited to members of the venue that owns the path. Files are capped at 5 MB and limited to JPEG, PNG, or WebP. Viewing uses short-lived signed links. |
@@ -26,11 +28,11 @@ Reviewed against the Supabase advisors and the migration rules. Migration `0007`
 ## Accepted
 
 - **Unused-index and unindexed-foreign-key notices** (INFO). The project is new and has little data.
-- **Authenticated-callable definer functions.** Intended. Each one checks membership and permission before acting.
+- **Authenticated-callable definer functions.** Intended. Each write entry point checks membership and permission before acting.
 
 ## Still open
 
-1. **Push notifications are built but unverified on a device.** Devices register a token (`device_tokens`), a trigger on `notifications` calls the `send-push` Edge Function, and it sends through Firebase Cloud Messaging. Needs a real iPhone test. Web push is not included.
+1. **Push notifications are built but unverified on a device.** Devices register a token (`device_tokens`), and a trigger on `notifications` queues a call to the `send-push` Edge Function. Migration `0017` requires each environment to configure its own verified function URL; delivery also requires a deployed function, Firebase credentials, and a real device test. Web push is not included.
 2. **Department membership has no admin screen.** It is stored and enforced, but people are assigned by SQL (or the Supabase dashboard) for now. The admin screen needs a user directory, which the app does not have yet.
 3. **Escalation limits are configured per venue, not per category.** Category-level thresholds would need a second dimension in `escalation_rules`.
 4. **The isolation checks are a script, not a CI job.** `supabase/tests/rls_and_rules.sql` runs against a database with the migrations applied. CI has no database credentials, so it does not run there.

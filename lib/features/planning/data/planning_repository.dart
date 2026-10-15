@@ -41,7 +41,10 @@ class PlanningRepository {
   // ---- Tasks ---------------------------------------------------------------
 
   Future<int> generateTasks(String eventId) async {
-    final result = await _client.rpc<int>('generate_event_tasks', params: {'p_event': eventId});
+    final result = await _client.rpc<int>(
+      'generate_event_tasks',
+      params: {'p_event': eventId},
+    );
     return result;
   }
 
@@ -53,7 +56,10 @@ class PlanningRepository {
         .select('*, venue_suites(name, location, service_zone)')
         .eq('event_id', eventId)
         .order('created_at');
-    return rows.cast<Map<String, dynamic>>().map(SuiteAssignment.fromJson).toList();
+    return rows
+        .cast<Map<String, dynamic>>()
+        .map(SuiteAssignment.fromJson)
+        .toList();
   }
 
   /// Configuration write. Row-level security allows this only with manage_configuration.
@@ -74,11 +80,35 @@ class PlanningRepository {
   }
 
   Future<List<Map<String, dynamic>>> listVenueSuites(String venueId) async {
-    final rows = await _client.from('venue_suites').select('id, name').eq('venue_id', venueId).order('name');
+    final rows = await _client
+        .from('venue_suites')
+        .select('id, name, location, service_zone, capacity')
+        .eq('venue_id', venueId)
+        .order('name');
     return rows.cast<Map<String, dynamic>>();
   }
 
-  Future<void> assignSuite({required String venueId, required String eventId, required String suiteId}) async {
+  Future<int?> serviceSuiteCount(String venueId) async {
+    final row = await _client
+        .from('venues')
+        .select('service_suite_count')
+        .eq('id', venueId)
+        .single();
+    return (row['service_suite_count'] as num?)?.toInt();
+  }
+
+  Future<void> setServiceSuiteCount(String venueId, int count) async {
+    await _client.rpc(
+      'set_service_suite_count',
+      params: {'p_venue': venueId, 'p_count': count},
+    );
+  }
+
+  Future<void> assignSuite({
+    required String venueId,
+    required String eventId,
+    required String suiteId,
+  }) async {
     await _client.from('suite_event_assignments').insert({
       'venue_id': venueId,
       'event_id': eventId,
@@ -86,37 +116,55 @@ class PlanningRepository {
     });
   }
 
-  Future<SuiteAssignment> setSuiteState(String assignmentId, SuiteState to, int expectedVersion) async {
-    final row = await _client.rpc<Map<String, dynamic>>('set_suite_state', params: {
-      'p_assignment': assignmentId,
-      'p_to': to.code,
-      'p_expected_version': expectedVersion,
-    });
+  Future<SuiteAssignment> setSuiteState(
+    String assignmentId,
+    SuiteState to,
+    int expectedVersion,
+  ) async {
+    final row = await _client.rpc<Map<String, dynamic>>(
+      'set_suite_state',
+      params: {
+        'p_assignment': assignmentId,
+        'p_to': to.code,
+        'p_expected_version': expectedVersion,
+      },
+    );
     return SuiteAssignment.fromJson({...row, 'venue_suites': null});
   }
 
-  Future<void> updateSuiteDetails(String assignmentId, {
+  Future<void> updateSuiteDetails(
+    String assignmentId, {
     required String attendantName,
     required String runnerName,
     required String guestContact,
     required String dietaryNotes,
     required String specialInstructions,
   }) async {
-    await _client.from('suite_event_assignments').update({
-      'attendant_name': attendantName,
-      'runner_name': runnerName,
-      'guest_contact': guestContact,
-      'dietary_notes': dietaryNotes,
-      'special_instructions': specialInstructions,
-      'updated_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('id', assignmentId);
+    await _client
+        .from('suite_event_assignments')
+        .update({
+          'attendant_name': attendantName,
+          'runner_name': runnerName,
+          'guest_contact': guestContact,
+          'dietary_notes': dietaryNotes,
+          'special_instructions': specialInstructions,
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', assignmentId);
   }
 
   // ---- Staffing ------------------------------------------------------------
 
   Future<List<StaffPosition>> listStaff(String eventId) async {
-    final rows = await _client.from('event_staff').select().eq('event_id', eventId).order('created_at');
-    return rows.cast<Map<String, dynamic>>().map(StaffPosition.fromJson).toList();
+    final rows = await _client
+        .from('event_staff')
+        .select()
+        .eq('event_id', eventId)
+        .order('created_at');
+    return rows
+        .cast<Map<String, dynamic>>()
+        .map(StaffPosition.fromJson)
+        .toList();
   }
 
   Future<void> addStaff({
@@ -162,11 +210,19 @@ class PlanningRepository {
   }
 
   /// Names of active venue members, for linking a position to a real account. No emails.
-  Future<List<({String id, String name})>> listVenueMembers(String venueId) async {
-    final rows = await _client.rpc<List<dynamic>>('list_venue_members', params: {'p_venue': venueId});
+  Future<List<({String id, String name})>> listVenueMembers(
+    String venueId,
+  ) async {
+    final rows = await _client.rpc<List<dynamic>>(
+      'list_venue_members',
+      params: {'p_venue': venueId},
+    );
     return [
       for (final r in rows.cast<Map<String, dynamic>>())
-        (id: r['user_id'] as String, name: (r['display_name'] as String?) ?? 'Team member'),
+        (
+          id: r['user_id'] as String,
+          name: (r['display_name'] as String?) ?? 'Team member',
+        ),
     ];
   }
 
@@ -178,29 +234,34 @@ class PlanningRepository {
     String? userId,
     String? suiteAssignmentId,
   }) async {
-    await _client.from('event_staff').update({
-      'display_name': displayName,
-      'user_id': userId,
-      'suite_assignment_id': suiteAssignmentId,
-      'updated_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('id', staffId);
+    await _client
+        .from('event_staff')
+        .update({
+          'display_name': displayName,
+          'user_id': userId,
+          'suite_assignment_id': suiteAssignmentId,
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', staffId);
   }
 
   // ---- Briefings -----------------------------------------------------------
 
   Future<List<Briefing>> listBriefings(String eventId) async {
     final userId = _client.auth.currentUser?.id;
-    final briefings = (await _client
-            .from('event_briefings')
-            .select()
-            .eq('event_id', eventId)
-            .order('created_at', ascending: false))
-        .cast<Map<String, dynamic>>();
-    final acks = (await _client
-            .from('briefing_acknowledgments')
-            .select('briefing_id')
-            .eq('user_id', userId ?? ''))
-        .cast<Map<String, dynamic>>();
+    final briefings =
+        (await _client
+                .from('event_briefings')
+                .select()
+                .eq('event_id', eventId)
+                .order('created_at', ascending: false))
+            .cast<Map<String, dynamic>>();
+    final acks =
+        (await _client
+                .from('briefing_acknowledgments')
+                .select('briefing_id')
+                .eq('user_id', userId ?? ''))
+            .cast<Map<String, dynamic>>();
     final acked = {for (final a in acks) a['briefing_id'] as String};
 
     return [
@@ -216,7 +277,12 @@ class PlanningRepository {
     ];
   }
 
-  Future<void> createBriefing({required String venueId, required String eventId, required String title, required String body}) async {
+  Future<void> createBriefing({
+    required String venueId,
+    required String eventId,
+    required String title,
+    required String body,
+  }) async {
     await _client.from('event_briefings').insert({
       'venue_id': venueId,
       'event_id': eventId,
@@ -225,40 +291,56 @@ class PlanningRepository {
     });
   }
 
-  Future<void> acknowledgeBriefing({required String venueId, required String briefingId}) async {
-    await _client.from('briefing_acknowledgments').upsert({
-      'briefing_id': briefingId,
-      'venue_id': venueId,
-    }, onConflict: 'briefing_id,user_id', ignoreDuplicates: true);
+  Future<void> acknowledgeBriefing({
+    required String venueId,
+    required String briefingId,
+  }) async {
+    await _client
+        .from('briefing_acknowledgments')
+        .upsert(
+          {'briefing_id': briefingId, 'venue_id': venueId},
+          onConflict: 'briefing_id,user_id',
+          ignoreDuplicates: true,
+        );
   }
 
   // ---- BEO -----------------------------------------------------------------
 
   Future<BeoBundle?> loadBeo(String eventId) async {
-    final doc = await _client.from('beo_documents').select().eq('event_id', eventId).maybeSingle();
+    final doc = await _client
+        .from('beo_documents')
+        .select()
+        .eq('event_id', eventId)
+        .maybeSingle();
     if (doc == null) return null;
     final beoId = doc['id'] as String;
-    final revisions = (await _client
-            .from('beo_revisions')
-            .select()
-            .eq('beo_id', beoId)
-            .order('revision_no', ascending: false))
-        .cast<Map<String, dynamic>>()
-        .map(BeoRevision.fromJson)
-        .toList();
+    final revisions =
+        (await _client
+                .from('beo_revisions')
+                .select()
+                .eq('beo_id', beoId)
+                .order('revision_no', ascending: false))
+            .cast<Map<String, dynamic>>()
+            .map(BeoRevision.fromJson)
+            .toList();
 
     final currentId = doc['current_revision_id'] as String?;
     final acks = currentId == null
         ? const <Map<String, dynamic>>[]
-        : (await _client.from('beo_acknowledgments').select('department').eq('revision_id', currentId))
-            .cast<Map<String, dynamic>>();
+        : (await _client
+                  .from('beo_acknowledgments')
+                  .select('department')
+                  .eq('revision_id', currentId))
+              .cast<Map<String, dynamic>>();
 
     return BeoBundle(
       beoId: beoId,
       title: doc['title'] as String,
       revisions: revisions,
       currentRevisionId: currentId,
-      acknowledgedDepartments: {for (final a in acks) a['department'] as String},
+      acknowledgedDepartments: {
+        for (final a in acks) a['department'] as String,
+      },
     );
   }
 
@@ -268,12 +350,15 @@ class PlanningRepository {
     required BeoContent content,
     required String summary,
   }) async {
-    await _client.rpc<Map<String, dynamic>>('create_beo', params: {
-      'p_event': eventId,
-      'p_title': title,
-      'p_content': content.toJson(),
-      'p_summary': summary,
-    });
+    await _client.rpc<Map<String, dynamic>>(
+      'create_beo',
+      params: {
+        'p_event': eventId,
+        'p_title': title,
+        'p_content': content.toJson(),
+        'p_summary': summary,
+      },
+    );
   }
 
   Future<void> proposeRevision({
@@ -282,22 +367,28 @@ class PlanningRepository {
     required String summary,
     required int expectedRevision,
   }) async {
-    await _client.rpc<Map<String, dynamic>>('propose_beo_revision', params: {
-      'p_beo': beoId,
-      'p_content': content.toJson(),
-      'p_summary': summary,
-      'p_expected_revision': expectedRevision,
-    });
+    await _client.rpc<Map<String, dynamic>>(
+      'propose_beo_revision',
+      params: {
+        'p_beo': beoId,
+        'p_content': content.toJson(),
+        'p_summary': summary,
+        'p_expected_revision': expectedRevision,
+      },
+    );
   }
 
   Future<void> approveRevision(String revisionId) async {
-    await _client.rpc<Map<String, dynamic>>('approve_beo_revision', params: {'p_revision': revisionId});
+    await _client.rpc<Map<String, dynamic>>(
+      'approve_beo_revision',
+      params: {'p_revision': revisionId},
+    );
   }
 
   Future<void> acknowledgeRevision(String revisionId, String department) async {
-    await _client.rpc<bool>('acknowledge_beo_revision', params: {
-      'p_revision': revisionId,
-      'p_department': department,
-    });
+    await _client.rpc<bool>(
+      'acknowledge_beo_revision',
+      params: {'p_revision': revisionId, 'p_department': department},
+    );
   }
 }

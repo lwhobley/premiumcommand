@@ -1,7 +1,9 @@
 -- CUTX Premium Command: isolation and workflow-rule checks.
--- Run against a database where migrations 0001 to 0007 are applied. Everything runs inside
--- one transaction that ends by raising an error, so no data is left behind.
+-- Run against a database where all migrations through 0019 are applied. Everything runs inside
+-- one transaction that is rolled back, so no data is left behind.
 -- The final message "ALL CHECKS PASSED" means every check held.
+
+begin;
 
 do $$
 declare
@@ -31,7 +33,8 @@ begin
     (v, u_dir), (v, u_run), (v, u_suite), (v_other, u_other);
   insert into role_assignments (venue_id, user_id, role_code) values
     (v, u_dir, 'director'), (v, u_run, 'runner'), (v, u_suite, 'suite_attendant'), (v_other, u_other, 'director');
-  insert into department_memberships (venue_id, user_id, department) values (v, u_suite, 'suites');
+  insert into department_memberships (venue_id, user_id, department) values
+    (v, u_suite, 'suites'), (v, u_suite, 'culinary');
 
   insert into events (venue_id, name, event_type, service_start, service_end, status)
     values (v, 'chk-event', 'concert', now(), now() + interval '3 hours', 'in_service') returning id into ev;
@@ -45,7 +48,7 @@ begin
   reset role;
   if n <> 0 then raise exception '1 FAILED: cross-tenant event visible'; end if;
 
-  -- 2. Tasks: generated, then status set only through set_task_status.
+  -- 2. Tasks: generated, then status set only through the version-checked RPC.
   perform set_config('request.jwt.claims', json_build_object('sub', u_dir, 'role', 'authenticated')::text, true);
   set local role authenticated;
   perform generate_event_tasks(ev);
@@ -61,7 +64,7 @@ begin
     raise exception '2a FAILED: direct task update allowed';
   exception when others then
     reset role;
-    if sqlerrm like '2a FAILED%' then raise; end if;
+    if sqlstate <> '42501' or sqlerrm not like '%event_tasks%' then raise; end if;
   end;
 
   -- 2b. A BEO revision flags the culinary task; completion is blocked until acknowledged.
@@ -81,19 +84,31 @@ begin
   perform set_config('request.jwt.claims', json_build_object('sub', u_dir, 'role', 'authenticated')::text, true);
   set local role authenticated;
   begin
-    perform set_task_status(t.id, 'completed');
+    perform set_task_status_once(gen_random_uuid(), t.id, 'completed',
+      (select version from event_tasks where id = t.id));
     reset role;
     raise exception '2c FAILED: completed while flagged for review';
   exception when others then
     reset role;
-    if sqlerrm like '2c FAILED%' then raise; end if;
-    perform set_config('request.jwt.claims', json_build_object('sub', u_dir, 'role', 'authenticated')::text, true);
-    set local role authenticated;
+    if sqlstate <> 'P0001' or sqlerrm not like 'This task changed with a BEO revision%' then raise; end if;
   end;
+  perform set_config('request.jwt.claims', json_build_object('sub', u_run, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  begin
+    perform acknowledge_beo_revision(rev_id, 'culinary');
+    raise exception '2c FAILED: another department cleared the review flag';
+  exception when insufficient_privilege then
+    if sqlerrm <> 'Not authorized to acknowledge this department' then raise; end if;
+  end;
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', u_dir, 'role', 'authenticated')::text, true);
+  set local role authenticated;
   perform acknowledge_beo_revision(rev_id, 'culinary');
-  perform set_task_status(t.id, 'completed');
+  perform set_task_status_once(gen_random_uuid(), t.id, 'completed',
+    (select version from event_tasks where id = t.id));
   -- Repeating the same status is a no-op.
-  perform set_task_status(t.id, 'completed');
+  perform set_task_status_once(gen_random_uuid(), t.id, 'completed',
+    (select version from event_tasks where id = t.id));
   reset role;
   if (select status from event_tasks where id = t.id) <> 'completed' then
     raise exception '2d FAILED: task not completed after acknowledgment';
@@ -119,7 +134,7 @@ begin
     raise exception '3a FAILED: runner accepted a suites request';
   exception when others then
     reset role;
-    if sqlerrm like '3a FAILED%' then raise; end if;
+    if sqlstate <> '42501' or sqlerrm <> 'Not authorized to accept' then raise; end if;
   end;
 
   -- 3b. A suites member can accept it.
@@ -138,8 +153,10 @@ begin
     raise exception '4 FAILED: runner cancelled';
   exception when others then
     reset role;
-    if sqlerrm like '4 FAILED%' then raise; end if;
+    if sqlstate <> '42501' or sqlerrm <> 'Only managers can cancel requests' then raise; end if;
   end;
 
-  raise exception 'ALL CHECKS PASSED - rolled back, no data persisted';
+  raise notice 'ALL CHECKS PASSED';
 end $$;
+
+rollback;

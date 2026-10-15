@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../features/auth/application/session_controller.dart';
 import '../features/auth/presentation/sign_in_screen.dart';
+import '../features/beo/presentation/beo_screen.dart';
 import '../features/events/presentation/event_create_screen.dart';
 import '../features/events/presentation/event_workspace_screen.dart';
 import 'app_section.dart';
@@ -29,8 +30,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (session == null) return onSignIn ? null : _signInPath;
       if (onSignIn || location == '/') return _homePath;
 
-      final section = AppSection.values.where((s) => s.path == location).firstOrNull;
-      if (section != null && !section.allows(session.permissions)) return _homePath;
+      final section = AppSection.values
+          .where((s) => s.path == location)
+          .firstOrNull;
+      if (section != null && !section.allows(session.permissions)) {
+        return _homePath;
+      }
+      if (location.startsWith('/beo/event/') &&
+          !AppSection.beoManagement.allows(session.permissions)) {
+        return _homePath;
+      }
       return null;
     },
     routes: [
@@ -49,6 +58,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/events/:id',
             builder: (context, state) =>
                 EventWorkspaceScreen(eventId: state.pathParameters['id']!),
+          ),
+          GoRoute(
+            path: '/beo/event/:eventId',
+            builder: (context, state) =>
+                BeoScreen(eventId: state.pathParameters['eventId']!),
           ),
           GoRoute(
             path: '/menu',

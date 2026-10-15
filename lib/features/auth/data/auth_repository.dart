@@ -107,9 +107,17 @@ class SupabaseAuthRepository implements AuthRepository {
       throw const AppFailure('This account has no venue access yet. Contact your administrator.');
     }
 
-    // Venue selection is single-venue for now; multi-venue switching is a later milestone.
-    final venueId = rows.first['venue_id'] as String;
-    final venue = rows.first['venues'] as Map<String, dynamic>;
+    // Keep the last selected venue stable when role-assignment row order changes.
+    final cached = await _cache.read();
+    final venueIds = rows.map((row) => row['venue_id'] as String).toSet().toList()..sort();
+    final cachedVenue = cached != null && cached['user_id'] == user.id
+        ? cached['venue_id'] as String?
+        : null;
+    final venueId = cachedVenue != null && venueIds.contains(cachedVenue)
+        ? cachedVenue
+        : venueIds.first;
+    final venue = rows.firstWhere((row) => row['venue_id'] == venueId)['venues']
+        as Map<String, dynamic>;
     final roles = rows
         .where((row) => row['venue_id'] == venueId)
         .map((row) => AppRole.fromCode(row['role_code'] as String))

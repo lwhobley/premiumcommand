@@ -170,6 +170,7 @@ class ChecklistItem {
     required this.responseType,
     required this.requiresManagerApproval,
     required this.department,
+    this.position = 0,
   });
 
   final String id;
@@ -177,6 +178,7 @@ class ChecklistItem {
   final String responseType;
   final bool requiresManagerApproval;
   final Department department;
+  final int position;
 
   factory ChecklistItem.fromJson(Map<String, dynamic> json) {
     return ChecklistItem(
@@ -185,6 +187,7 @@ class ChecklistItem {
       responseType: json['response_type'] as String,
       requiresManagerApproval: json['requires_manager_approval'] as bool? ?? false,
       department: Department.fromCode((json['department'] as String?) ?? 'operations'),
+      position: (json['position'] as num?)?.toInt() ?? 0,
     );
   }
 }

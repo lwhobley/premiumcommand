@@ -49,6 +49,12 @@ class InspectionsScreen extends ConsumerWidget {
   Future<void> _start(BuildContext context, WidgetRef ref, String eventId, AppSession session) async {
     final templates = await ref.read(templatesProvider.future);
     if (!context.mounted) return;
+    if (templates.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No checklists are available for this venue.')),
+      );
+      return;
+    }
     final draft = await showDialog<(ChecklistTemplate, String)>(
       context: context,
       builder: (_) => _StartDialog(templates: templates),
@@ -134,6 +140,36 @@ class _Instances extends ConsumerWidget {
   }
 
   Future<void> _approve(BuildContext context, WidgetRef ref, InspectionInstance inst) async {
+    final responses = await ref.read(operationsRepositoryProvider).listInspectionResponses(inst.id);
+    final storage = ref.read(evidenceStorageProvider);
+    final photos = await Future.wait([
+      for (final row in responses)
+        if ((row['photo_url'] as String? ?? '').isNotEmpty)
+          storage.viewUrl(row['photo_url'] as String)
+        else Future.value(''),
+    ]);
+    if (!context.mounted) return;
+    final approved = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
+      title: const Text('Review inspection responses'),
+      content: SizedBox(width: 520, child: ListView(shrinkWrap: true, children: [
+        for (var index = 0; index < responses.length; index++)
+          ListTile(
+            title: Text((responses[index]['checklist_items'] as Map?)?['label'] as String? ?? 'Item'),
+            subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(responses[index]['passed'] == true ? 'Passed' : 'Failed'),
+              if (responses[index]['numeric_value'] != null) Text('Value: ${responses[index]['numeric_value']}'),
+              if ((responses[index]['text_value'] as String? ?? '').isNotEmpty)
+                Text(responses[index]['text_value'] as String),
+              if (photos[index].isNotEmpty) Image.network(photos[index], height: 160),
+            ]),
+          ),
+      ])),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+        FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Approve')),
+      ],
+    ));
+    if (approved != true || !context.mounted) return;
     await runWrite(context, () async {
       await ref.read(operationsRepositoryProvider).approveInspection(inst.id);
       ref.invalidate(inspectionsProvider(eventId));
@@ -183,7 +219,7 @@ class _InstanceCard extends StatelessWidget {
             if (instance.status == 'open' && canRun)
               FilledButton.tonal(onPressed: onComplete, child: const Text('Complete inspection')),
             if (instance.status == 'completed' && canApprove)
-              FilledButton(onPressed: onApprove, child: const Text('Approve')),
+              FilledButton(onPressed: onApprove, child: const Text('Review and approve')),
           ],
         ),
       ),
@@ -262,6 +298,7 @@ class _CompleteDialog extends StatefulWidget {
 class _CompleteDialogState extends State<_CompleteDialog> {
   late final Map<String, bool?> _passed = {for (final i in widget.template.items) i.id: null};
   final Map<String, TextEditingController> _notes = {};
+  final Map<String, TextEditingController> _numbers = {};
   final Map<String, String> _photos = {};
   final Set<String> _uploading = {};
 
@@ -298,6 +335,9 @@ class _CompleteDialogState extends State<_CompleteDialog> {
     for (final c in _notes.values) {
       c.dispose();
     }
+    for (final c in _numbers.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -309,17 +349,32 @@ class _CompleteDialogState extends State<_CompleteDialog> {
       responses.add({
         'item_id': item.id,
         'passed': value,
+        'numeric_value': item.responseType == 'numeric'
+            ? num.tryParse(_numbers[item.id]?.text.trim() ?? '') : null,
         'text_value': _notes[item.id]?.text.trim() ?? '',
         'photo_url': _photos[item.id] ?? '',
       });
     }
-    if (responses.length != widget.template.items.length) return;
+    if (responses.length != widget.template.items.length ||
+        widget.template.items.any((item) =>
+            (item.responseType == 'numeric' &&
+                num.tryParse(_numbers[item.id]?.text.trim() ?? '') == null) ||
+            (item.responseType == 'text' &&
+                (_notes[item.id]?.text.trim().isEmpty ?? true)) ||
+            (item.responseType == 'photo' && !_photos.containsKey(item.id)))) {
+      return;
+    }
     Navigator.pop(context, responses);
   }
 
   @override
   Widget build(BuildContext context) {
-    final unanswered = _passed.values.where((v) => v == null).length;
+    final unanswered = widget.template.items.where((item) =>
+        _passed[item.id] == null ||
+        (item.responseType == 'numeric' &&
+            num.tryParse(_numbers[item.id]?.text.trim() ?? '') == null) ||
+        (item.responseType == 'text' && (_notes[item.id]?.text.trim().isEmpty ?? true)) ||
+        (item.responseType == 'photo' && !_photos.containsKey(item.id))).length;
     return AlertDialog(
       title: Text(widget.template.name),
       content: SizedBox(
@@ -337,20 +392,33 @@ class _CompleteDialogState extends State<_CompleteDialog> {
                       Text(item.label, style: const TextStyle(fontWeight: FontWeight.w600)),
                       if (item.requiresManagerApproval)
                         const Text('Needs manager approval', style: TextStyle(color: AppColors.attention, fontSize: 12)),
+                      if (item.responseType == 'numeric')
+                        TextField(
+                          controller: _numbers.putIfAbsent(item.id, () => TextEditingController()),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          decoration: const InputDecoration(labelText: 'Measured value'),
+                          onChanged: (_) => setState(() {}),
+                        ),
+                      if (item.responseType == 'text')
+                        TextField(
+                          controller: _notes.putIfAbsent(item.id, () => TextEditingController()),
+                          decoration: const InputDecoration(labelText: 'Response'),
+                          onChanged: (_) => setState(() {}),
+                        ),
                       Row(children: [
                         ChoiceChip(
-                          label: const Text('Pass'),
+                          label: Text(item.responseType == 'yes_no' ? 'Yes' : 'Pass'),
                           selected: _passed[item.id] == true,
                           onSelected: (_) => setState(() => _passed[item.id] = true),
                         ),
                         const SizedBox(width: 8),
                         ChoiceChip(
-                          label: const Text('Fail'),
+                          label: Text(item.responseType == 'yes_no' ? 'No' : 'Fail'),
                           selected: _passed[item.id] == false,
                           onSelected: (_) => setState(() => _passed[item.id] = false),
                         ),
                       ]),
-                      if (_passed[item.id] == false)
+                      if (_passed[item.id] == false && item.responseType != 'text')
                         TextField(
                           controller: _notes.putIfAbsent(item.id, () => TextEditingController()),
                           decoration: const InputDecoration(labelText: 'What failed? (opens a corrective task)'),
@@ -371,7 +439,7 @@ class _CompleteDialogState extends State<_CompleteDialog> {
                   ),
                 ),
               if (unanswered > 0)
-                Text('$unanswered item(s) still need a response.',
+                Text('$unanswered item(s) still need their required response.',
                     style: const TextStyle(color: AppColors.blocked)),
             ],
           ),

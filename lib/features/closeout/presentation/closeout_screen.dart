@@ -142,7 +142,7 @@ class _CloseoutPanel extends ConsumerWidget {
             ),
           if (permissions.contains(AppPermission.viewReports))
             OutlinedButton.icon(
-              onPressed: () => _export(context, c),
+              onPressed: () => _export(context, ref, c),
               icon: const Icon(Icons.picture_as_pdf_outlined),
               label: const Text('Export PDF'),
             ),
@@ -157,8 +157,9 @@ class _CloseoutPanel extends ConsumerWidget {
     );
   }
 
-  Future<void> _export(BuildContext context, Closeout c) async {
-    final bytes = await buildRecapPdf(c.recap, status: c.status);
+  Future<void> _export(BuildContext context, WidgetRef ref, Closeout c) async {
+    final bytes = await buildRecapPdf(c.recap,
+        status: c.status, timeZone: ref.read(sessionProvider)?.timeZone ?? 'UTC');
     await Printing.layoutPdf(onLayout: (_) async => bytes, name: 'event-recap.pdf');
   }
 }

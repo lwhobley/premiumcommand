@@ -10,7 +10,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class PushService {
   static bool _ready = false;
   StreamSubscription<String>? _refresh;
+  Timer? _retry;
   String? _token;
+  bool _active = false;
 
   /// Called once at startup. Push is optional: any failure leaves the app running without it.
   static Future<void> initialize() async {
@@ -26,19 +28,19 @@ class PushService {
   /// Asks for permission and links this device to the signed-in user.
   Future<void> start(SupabaseClient client) async {
     if (!_ready) return;
+    _active = true;
     try {
       final messaging = FirebaseMessaging.instance;
       final settings = await messaging.requestPermission();
       if (settings.authorizationStatus == AuthorizationStatus.denied) return;
       // Show alerts while the app is open too.
       await messaging.setForegroundNotificationPresentationOptions(alert: true, sound: true);
-      _token = await messaging.getToken();
-      if (_token != null) await _register(client, _token!);
       await _refresh?.cancel();
       _refresh = messaging.onTokenRefresh.listen((token) {
         _token = token;
-        _register(client, token);
+        unawaited(_register(client, token));
       });
+      await _tryRegister(client, messaging);
     } catch (_) {
       // No notification permission or no network: the in-app inbox still works.
     }
@@ -46,6 +48,9 @@ class PushService {
 
   /// Stops pushes to this device for the person who is signing out.
   Future<void> stop(SupabaseClient client) async {
+    _active = false;
+    _retry?.cancel();
+    _retry = null;
     await _refresh?.cancel();
     _refresh = null;
     final token = _token;
@@ -65,5 +70,27 @@ class PushService {
         'p_platform': defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android',
       });
     } catch (_) {}
+  }
+
+  Future<void> _tryRegister(SupabaseClient client, FirebaseMessaging messaging,
+      [int attempt = 0]) async {
+    if (!_active) return;
+    if (defaultTargetPlatform == TargetPlatform.iOS &&
+        await messaging.getAPNSToken() == null) {
+      if (attempt < 12) {
+        _retry = Timer(const Duration(seconds: 5), () =>
+            unawaited(_tryRegister(client, messaging, attempt + 1)));
+      }
+      return;
+    }
+    try {
+      _token = await messaging.getToken();
+      if (_active && _token != null) await _register(client, _token!);
+    } catch (_) {
+      if (attempt < 12) {
+        _retry = Timer(const Duration(seconds: 5), () =>
+            unawaited(_tryRegister(client, messaging, attempt + 1)));
+      }
+    }
   }
 }

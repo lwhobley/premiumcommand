@@ -8,6 +8,7 @@ import '../../../core/permissions/app_permission.dart';
 import '../../auth/application/session_controller.dart';
 import '../../sync/application/sync_controller.dart';
 import '../../auth/domain/app_session.dart';
+import '../../dispatch/data/dispatch_repository.dart';
 import '../data/event_repository.dart';
 import '../domain/event_lifecycle.dart';
 import '../domain/ops_event.dart';
@@ -16,7 +17,7 @@ import '../domain/readiness.dart';
 final eventRepositoryProvider = Provider<EventRepository>((ref) {
   final session = ref.watch(sessionProvider);
   if (AppConfig.hasSupabase) {
-    return SupabaseEventRepository(Supabase.instance.client);
+    return SupabaseEventRepository(Supabase.instance.client, session?.venueId ?? '');
   }
   return _demoRepository(session?.venueId ?? 'demo-venue');
 });
@@ -103,15 +104,18 @@ class EventActions {
     // Completing an already-completed task is a no-op so duplicate taps do not double-write.
     if (task.status == status) return;
 
+    final actionId = newClientRequestId();
     try {
-      await _repo.setTaskStatus(task.id, status);
+      await _repo.setTaskStatus(task.id, status,
+          expectedVersion: task.version, actionId: actionId);
     } catch (error) {
       if (!isNetworkError(error)) rethrow;
       // Task status is absolute, so a repeated send is harmless. Queue it for later.
       await _ref.read(syncControllerProvider.notifier).enqueue(outboxSetTaskStatus, {
         'task_id': task.id,
         'status': status.code,
-      });
+        'expected_version': task.version,
+      }, id: actionId);
     }
     _refresh();
   }

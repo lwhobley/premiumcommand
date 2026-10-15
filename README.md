@@ -2,6 +2,10 @@
 
 Premium hospitality operations for event execution: events, lifecycle, readiness, dispatch, suites, staffing, BEOs, banquet and culinary handoffs, inspections, communications, and closeout. Built to work for any venue; CUTX is the first.
 
+Initial venue configuration: **26 luxury suites available for service**. Individual suite names and locations remain unset until provided by the venue. See `docs/VENUE_CONFIGURATION.md`.
+
+The initial venue has three confirmed banquet areas: Main Arena Floor, Premium Level Lounge, and a two-room Meeting Rooms group. Their supplied areas, guest capacities, and lounge bar detail are recorded in `docs/VENUE_CONFIGURATION.md` and migration `0013_banquet_area_facts.sql`.
+
 ## Status
 
 | Area | State |
@@ -23,7 +27,7 @@ Premium hospitality operations for event execution: events, lifecycle, readiness
 | Administration (suites, checklist library) | Built (partial: see below) |
 | Offline queue for dispatch and task updates, with conflict review | Built |
 | Offline read cache for dispatch | Built |
-| Security and performance review, open items closed except push notifications | See `docs/SECURITY_REVIEW.md` |
+| Security hardening for tenant links and workflow rules | Prepared in migrations `0015`–`0017`; database validation pending |
 | Deployment guide and CI | See `docs/DEPLOYMENT.md`, `.github/workflows/ci.yml` |
 
 Not yet built, or built only partly: see `docs/SECURITY_REVIEW.md` "Open" for the gaps that matter before go-live.

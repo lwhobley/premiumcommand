@@ -31,7 +31,8 @@ List<ServiceRequest> requestsForShift({
     if (!request.status.isOpen) return false;
     if (request.assignedUserId == userId) return true;
     final dept = request.assignedDepartment;
-    return dept != null && departments.any((d) => d.code == dept);
+    return request.assignedUserId == null &&
+        dept != null && departments.any((d) => d.code == dept);
   }).toList();
 }
 

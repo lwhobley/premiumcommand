@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/permissions/app_permission.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/time/venue_time.dart';
 import '../../auth/application/session_controller.dart';
 import '../../planning/application/planning_providers.dart';
 import '../../planning/presentation/planning_widgets.dart';
@@ -93,7 +94,7 @@ class _Announcements extends ConsumerWidget {
                               Text(a['body'] as String),
                               const SizedBox(height: 6),
                               Text(
-                                DateFormat('MMM d, h:mm a').format(DateTime.parse(a['created_at'] as String).toLocal()),
+                                DateFormat('MMM d, h:mm a').format(atVenue(DateTime.parse(a['created_at'] as String), ref.watch(sessionProvider)?.timeZone ?? 'UTC')),
                                 style: const TextStyle(color: AppColors.charcoalMuted, fontSize: 12),
                               ),
                             ],

@@ -73,6 +73,7 @@ class BeoRevision {
     required this.content,
     required this.summary,
     required this.createdAt,
+    this.affectedDepartments = const {},
   });
 
   final String id;
@@ -82,6 +83,7 @@ class BeoRevision {
   final BeoContent content;
   final String summary;
   final DateTime createdAt;
+  final Set<String> affectedDepartments;
 
   factory BeoRevision.fromJson(Map<String, dynamic> json) {
     return BeoRevision(
@@ -92,6 +94,9 @@ class BeoRevision {
       content: BeoContent.fromJson((json['content'] as Map).cast<String, dynamic>()),
       summary: (json['summary'] as String?) ?? '',
       createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
+      affectedDepartments: ((json['affected_departments'] as List?) ?? const [])
+          .cast<String>()
+          .toSet(),
     );
   }
 }

@@ -11,6 +11,7 @@ class OutboxItem {
     required this.payload,
     required this.createdAt,
     this.userId = '',
+    this.venueId = '',
     this.attempts = 0,
     this.needsReview = false,
     this.lastError = '',
@@ -22,6 +23,7 @@ class OutboxItem {
   /// Who made the change. Only this user's session may send it, so a shared device cannot
   /// send one person's queued work under another person's account.
   final String userId;
+  final String venueId;
   final Map<String, dynamic> payload;
   final DateTime createdAt;
   final int attempts;
@@ -36,6 +38,7 @@ class OutboxItem {
         payload: payload,
         createdAt: createdAt,
         userId: userId,
+        venueId: venueId,
         attempts: attempts ?? this.attempts,
         needsReview: needsReview ?? this.needsReview,
         lastError: lastError ?? this.lastError,
@@ -46,6 +49,7 @@ class OutboxItem {
         'kind': kind,
         'payload': payload,
         'user_id': userId,
+        'venue_id': venueId,
         'created_at': createdAt.toUtc().toIso8601String(),
         'attempts': attempts,
         'needs_review': needsReview,
@@ -57,10 +61,14 @@ class OutboxItem {
         kind: json['kind'] as String,
         payload: (json['payload'] as Map).cast<String, dynamic>(),
         userId: (json['user_id'] as String?) ?? '',
+        venueId: (json['venue_id'] as String?) ?? '',
         createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
         attempts: (json['attempts'] as num?)?.toInt() ?? 0,
-        needsReview: json['needs_review'] as bool? ?? false,
-        lastError: (json['last_error'] as String?) ?? '',
+        needsReview: (json['needs_review'] as bool? ?? false) ||
+            (json['venue_id'] as String? ?? '').isEmpty,
+        lastError: (json['venue_id'] as String? ?? '').isEmpty
+            ? 'Venue identity missing. Review this saved change before retrying.'
+            : (json['last_error'] as String?) ?? '',
       );
 }
 
@@ -73,43 +81,62 @@ class OutboxStore {
 
   SharedPreferences? _prefs;
   List<OutboxItem> _items = [];
+  Future<void>? _loadFuture;
+  Future<void> _writeTail = Future.value();
 
   List<OutboxItem> get items => List.unmodifiable(_items);
 
-  Future<void> load() async {
+  Future<void> load() => _loadFuture ??= _load();
+
+  Future<void> _load() async {
     try {
       _prefs ??= await SharedPreferences.getInstance();
       final raw = _prefs!.getString(_key);
-      if (raw != null && raw.isNotEmpty) {
-        _items = (jsonDecode(raw) as List).cast<Map<String, dynamic>>().map(OutboxItem.fromJson).toList();
+      if (raw == null || raw.isEmpty) return;
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return;
+      final recovered = <OutboxItem>[];
+      for (final value in decoded) {
+        try {
+          recovered.add(OutboxItem.fromJson((value as Map).cast<String, dynamic>()));
+        } catch (_) {
+          // Keep the other queued writes when one saved record is corrupt.
+        }
       }
+      _items = recovered;
     } catch (_) {
-      _items = [];
+      // A storage failure must not erase writes already held in memory.
     }
   }
 
-  Future<void> _save() async {
-    try {
-      _prefs ??= await SharedPreferences.getInstance();
-      await _prefs!.setString(_key, jsonEncode([for (final i in _items) i.toJson()]));
-    } catch (_) {
-      // Keep the in-memory queue; persistence is best-effort.
-    }
+  Future<void> _save() {
+    final snapshot = jsonEncode([for (final i in _items) i.toJson()]);
+    return _writeTail = _writeTail.then((_) async {
+      try {
+        _prefs ??= await SharedPreferences.getInstance();
+        await _prefs!.setString(_key, snapshot);
+      } catch (_) {
+        // Keep the in-memory queue; persistence is best-effort.
+      }
+    });
   }
 
   /// Adds an item unless one with the same id already exists, so enqueueing twice is harmless.
   Future<void> add(OutboxItem item) async {
+    await load();
     if (_items.any((i) => i.id == item.id)) return;
     _items = [..._items, item];
     await _save();
   }
 
   Future<void> replace(OutboxItem item) async {
+    await load();
     _items = [for (final i in _items) i.id == item.id ? item : i];
     await _save();
   }
 
   Future<void> remove(String id) async {
+    await load();
     _items = _items.where((i) => i.id != id).toList();
     await _save();
   }
