@@ -5,12 +5,12 @@ import 'package:go_router/go_router.dart';
 import '../core/push/push_service.dart';
 import '../features/auth/application/session_controller.dart';
 import '../core/permissions/app_permission.dart';
+import '../features/auth/domain/app_session.dart';
 import '../features/auth/presentation/sign_in_screen.dart';
 import '../features/beo/presentation/beo_screen.dart';
 import '../features/chat/presentation/chat_screen.dart';
 import '../features/events/presentation/event_create_screen.dart';
 import '../features/events/presentation/event_workspace_screen.dart';
-import '../features/staff/presentation/staff_management_screen.dart';
 import '../features/staff/presentation/staff_profile_screen.dart';
 import 'app_section.dart';
 import 'more_screen.dart';
@@ -18,6 +18,11 @@ import 'shell_scaffold.dart';
 
 const _signInPath = '/sign-in';
 const _homePath = '/my-shift';
+
+/// The Command Center is the main screen for anyone who can see operations. Everyone else
+/// starts on My Shift.
+String _homeFor(AppSession session) =>
+    session.can(AppPermission.viewOperations) ? AppSection.commandCenter.path : _homePath;
 
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = ValueNotifier<int>(0);
@@ -38,21 +43,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (session == null) return onSignIn ? null : _signInPath;
       final route = PushService.takePendingRoute();
       if (route != null) return route;
-      if (onSignIn || location == '/') return _homePath;
+      if (onSignIn || location == '/') return _homeFor(session);
 
       final section = AppSection.values
           .where((s) => s.path == location)
           .firstOrNull;
       if (section != null && !section.allows(session.permissions)) {
-        return _homePath;
+        return _homeFor(session);
       }
       if (location.startsWith('/beo/event/') &&
           !AppSection.beoManagement.allows(session.permissions)) {
-        return _homePath;
-      }
-      if (location == '/staff' &&
-          !session.can(AppPermission.manageConfiguration)) {
-        return _homePath;
+        return _homeFor(session);
       }
       return null;
     },
@@ -90,10 +91,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/profile',
             builder: (context, state) => const StaffProfileScreen(),
-          ),
-          GoRoute(
-            path: '/staff',
-            builder: (context, state) => const StaffManagementScreen(),
           ),
           GoRoute(
             path: '/staff/:id',

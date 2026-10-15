@@ -22,12 +22,14 @@ class SuiteMapView extends StatefulWidget {
 }
 
 class _SuiteMapViewState extends State<SuiteMapView> {
-  late final WebViewController _controller;
+  // Null where no WebView is available (desktop builds without one, and tests).
+  WebViewController? _controller;
   var _ready = false;
 
   @override
   void initState() {
     super.initState();
+    if (WebViewPlatform.instance == null) return;
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFFF1EDE4))
@@ -69,17 +71,34 @@ class _SuiteMapViewState extends State<SuiteMapView> {
   }
 
   void _sendSceneData() {
-    _controller.runJavaScript(
+    _controller?.runJavaScript(
       'window.cutxSuiteMap.render(${jsonEncode(widget.sceneData)});',
     );
   }
 
   @override
-  Widget build(BuildContext context) => WebViewWidget(
-    controller: _controller,
-    // Let the map take drags so rotating it does not scroll the page.
-    gestureRecognizers: {
-      Factory<OneSequenceGestureRecognizer>(EagerGestureRecognizer.new),
-    },
-  );
+  Widget build(BuildContext context) {
+    final controller = _controller;
+    if (controller == null) {
+      return const ColoredBox(
+        color: Color(0xFFF1EDE4),
+        child: Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'The 3D map is available in the iPhone, Android, and web apps.',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
+    return WebViewWidget(
+      controller: controller,
+      // Let the map take drags so rotating it does not scroll the page.
+      gestureRecognizers: {
+        Factory<OneSequenceGestureRecognizer>(EagerGestureRecognizer.new),
+      },
+    );
+  }
 }

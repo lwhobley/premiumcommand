@@ -16,6 +16,7 @@ import '../features/events/presentation/event_calendar_screen.dart';
 import '../features/events/presentation/event_list_screen.dart';
 import '../features/floor_plan/presentation/floor_plan_studio_screen.dart';
 import '../features/chat/presentation/chat_screen.dart';
+import '../features/staff/presentation/staff_management_screen.dart';
 
 /// Primary navigation sections. Routes and nav items are both derived from this list.
 /// A null [permission] means any signed-in user may open the section.
@@ -118,6 +119,13 @@ enum AppSection {
     permission: AppPermission.manageConfiguration,
     phase: 4,
   ),
+  staffManagement(
+    path: '/staff',
+    label: 'Staff Management',
+    icon: Icons.badge_outlined,
+    permission: AppPermission.manageConfiguration,
+    phase: 4,
+  ),
   floorPlanStudio(
     path: '/floor-plan',
     label: 'Floor Plan Studio',
@@ -160,6 +168,7 @@ enum AppSection {
       AppSection.inspections => const InspectionsScreen(),
       AppSection.communications => const CommunicationsScreen(),
       AppSection.chat => const ChatScreen(),
+      AppSection.staffManagement => const StaffManagementScreen(),
       AppSection.closeout => const CloseoutScreen(),
       AppSection.administration => const AdminScreen(),
       AppSection.floorPlanStudio => const FloorPlanStudioScreen(),

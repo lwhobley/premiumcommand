@@ -29,26 +29,42 @@ class CommandCenterScreen extends ConsumerWidget {
           final upcoming = items.where((s) => !s.event.status.isActive && s.event.status != EventStatus.closed && s.event.status != EventStatus.cancelled).toList();
           final overdue = active.fold<int>(0, (sum, s) => sum + s.overdueCount);
           final blocked = active.fold<int>(0, (sum, s) => sum + s.blockedCount);
+          // The map follows the event in progress, or else the next one coming up.
+          final nextUp = [...upcoming]
+            ..sort((a, b) => a.event.serviceStart.compareTo(b.event.serviceStart));
+          final mapEvent = active.isNotEmpty ? active.first.event : nextUp.firstOrNull?.event;
+          final venueId = ref.watch(sessionProvider)?.venueId;
 
           return ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: [
-                  _Metric(label: 'Active events', value: '${active.length}'),
-                  _Metric(label: 'Upcoming events', value: '${upcoming.length}'),
-                  _Metric(label: 'Overdue required tasks', value: '$overdue', alert: overdue > 0),
-                  _Metric(label: 'Blocked required tasks', value: '$blocked', alert: blocked > 0),
-                ],
+              // The four metrics as a 2 x 2 grid on every screen size.
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final width = (constraints.maxWidth - 12) / 2;
+                  return Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      for (final metric in [
+                        _Metric(label: 'Active events', value: '${active.length}'),
+                        _Metric(label: 'Upcoming events', value: '${upcoming.length}'),
+                        _Metric(label: 'Overdue required tasks', value: '$overdue', alert: overdue > 0),
+                        _Metric(label: 'Blocked required tasks', value: '$blocked', alert: blocked > 0),
+                      ])
+                        SizedBox(width: width, child: metric),
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 24),
-              if (active.isNotEmpty && ref.watch(sessionProvider) != null) ...[
+              if (venueId != null) ...[
                 PremiumLevelCard(
-                  venueId: ref.watch(sessionProvider)!.venueId,
-                  eventId: active.first.event.id,
-                  eventName: active.first.event.name,
+                  venueId: venueId,
+                  eventId: mapEvent?.id,
+                  heading: mapEvent == null
+                      ? 'No upcoming events'
+                      : '${active.isNotEmpty ? 'Now' : 'Next'}: ${mapEvent.name}',
                 ),
                 const SizedBox(height: 24),
               ],
@@ -78,7 +94,7 @@ class _Metric extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = alert ? AppColors.blocked : AppColors.charcoal;
     return SizedBox(
-      width: 200,
+      width: double.infinity,
       child: Card(
         child: Padding(
           padding: const EdgeInsets.all(16),
