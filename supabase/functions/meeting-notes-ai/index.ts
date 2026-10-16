@@ -7,7 +7,7 @@
 //
 // Every read and write runs as the signed-in administrator, so row level security applies.
 // The Anthropic key is the ANTHROPIC_API_KEY function secret and never reaches the app.
-import Anthropic from "npm:@anthropic-ai/sdk@0.135.0";
+import Anthropic from "npm:@anthropic-ai/sdk@0.133.0";
 import type { z } from "npm:zod@4.6.7";
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { corsHeaders, json } from "../_shared/http.ts";
