@@ -10,7 +10,7 @@ import '../suites/presentation/suite_map_view.dart';
 
 /// The premium level, always shown on the Command Center. With an event, suites are colored by
 /// their live state and staff placed in premium spaces are listed beneath. Without one, the map
-/// is shown plain. Tapping a suite or club opens its panel for the event.
+/// is shown plain. Tapping a suite, club, or the arena floor opens its panel for the event.
 class PremiumLevelCard extends ConsumerWidget {
   const PremiumLevelCard({
     super.key,
@@ -102,9 +102,7 @@ class PremiumLevelCard extends ConsumerWidget {
                 if (id == null) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text(
-                        'Add an event to see suite and club status and orders.',
-                      ),
+                      content: Text('Add an event to see status and orders.'),
                     ),
                   );
                   return;
@@ -122,7 +120,7 @@ class PremiumLevelCard extends ConsumerWidget {
         const SizedBox(height: 10),
         if (id != null && assignments.isEmpty)
           const Text(
-            'No suites or clubs are assigned to this event yet. Add them under Premium Spaces.',
+            'Nothing on the premium level is assigned to this event yet. Add spaces under Premium Spaces.',
             style: TextStyle(color: AppColors.charcoalMuted),
           )
         else if (id != null) ...[

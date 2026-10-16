@@ -59,6 +59,7 @@ void main() {
         _assignment('a3', 'Suite 210'),
         _assignment('a4', 'Suite 4'), // not on the plan
         _assignment('a5', 'Premium Club A', mapArea: 'club_a'),
+        _assignment('a6', 'Main Arena Floor', mapArea: 'arena_floor'),
       ],
       [
         _order('a2', SuiteOrderStatus.draft),
@@ -71,6 +72,7 @@ void main() {
       '202': SuiteMapStatus.draft,
       '210': SuiteMapStatus.delivered,
       'club_a': SuiteMapStatus.confirmed,
+      'arena_floor': SuiteMapStatus.noOrder,
     });
   });
 
@@ -87,6 +89,16 @@ void main() {
       expect(clubB['label'], 'Club B');
       expect(clubB['muted'], isFalse);
       expect(suites.firstWhere((s) => s['id'] == 'club_a')['muted'], isTrue);
+      final floor = scene['floor']! as Map<String, Object?>;
+      expect(floor['id'], 'arena_floor');
+      expect(floor['muted'], isTrue);
+      final assigned =
+          buildSuiteMapScene({
+                'arena_floor': SuiteMapStatus.confirmed,
+              })['floor']!
+              as Map<String, Object?>;
+      expect(assigned['muted'], isFalse);
+      expect(assigned['color'], '#2e7d5b');
       expect(scene['selected'], '201');
       final first = suites.firstWhere((s) => s['id'] == '201');
       expect(first['muted'], isFalse);

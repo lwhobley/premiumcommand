@@ -33,7 +33,7 @@ class AdminScreen extends ConsumerWidget {
           ? FloatingActionButton.extended(
               onPressed: () => _addSuite(context, ref, session.venueId),
               icon: const Icon(Icons.add),
-              label: const Text('Add suite or club'),
+              label: const Text('Add space'),
             )
           : null,
       body: ListView(
@@ -156,7 +156,7 @@ class AdminScreen extends ConsumerWidget {
             mapArea: draft.mapArea,
           );
       ref.invalidate(venueSuitesProvider(venueId));
-    }, success: draft.mapArea == null ? 'Suite added.' : 'Club added.');
+    }, success: 'Added.');
   }
 }
 
@@ -410,8 +410,9 @@ class _TemplateList extends ConsumerWidget {
   }
 }
 
-String? _clubLabel(String? mapArea) =>
-    premiumLevelClubs.where((c) => c.mapArea == mapArea).firstOrNull?.label;
+String? _clubLabel(String? mapArea) => mapArea == arenaFloorArea
+    ? 'Arena floor'
+    : premiumLevelClubs.where((c) => c.mapArea == mapArea).firstOrNull?.label;
 
 class _SuiteDraft {
   const _SuiteDraft({
@@ -460,7 +461,7 @@ class _SuiteDialogState extends State<_SuiteDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Add suite or club'),
+      title: const Text('Add premium space'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -483,6 +484,11 @@ class _SuiteDialogState extends State<_SuiteDialog> {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                if (!widget.placedClubs.contains(arenaFloorArea))
+                  const DropdownMenuItem(
+                    value: arenaFloorArea,
+                    child: Text('Arena floor, the open center'),
+                  ),
               ],
               onChanged: (value) => setState(() => _mapArea = value),
             ),
@@ -490,7 +496,7 @@ class _SuiteDialogState extends State<_SuiteDialog> {
             TextField(
               controller: _name,
               decoration: InputDecoration(
-                labelText: _mapArea == null ? 'Suite name' : 'Club name',
+                labelText: _mapArea == null ? 'Suite name' : 'Name',
                 errorText: _error,
               ),
             ),
@@ -526,7 +532,7 @@ class _SuiteDialogState extends State<_SuiteDialog> {
               setState(
                 () => _error = _mapArea == null
                     ? 'Name the suite.'
-                    : 'Name the club.',
+                    : 'Name this space.',
               );
               return;
             }

@@ -24,8 +24,8 @@ enum SuiteState {
   bool get isReadyOrBeyond => index >= SuiteState.ready.index;
 }
 
-/// A suite or club assigned to an event. Clubs are premium spaces too; they are told
-/// apart by [mapArea].
+/// A premium space assigned to an event: a suite, a club, or the arena floor. Clubs and
+/// the floor are told apart from suites by [mapArea].
 class SuiteAssignment {
   const SuiteAssignment({
     required this.id,
@@ -58,7 +58,7 @@ class SuiteAssignment {
   final String dietaryNotes;
   final String specialInstructions;
 
-  /// The club outline this space is drawn as, from `venue_suites.map_area`.
+  /// The club or arena floor this space is drawn as, from `venue_suites.map_area`.
   final String? mapArea;
 
   /// Where this space is on the premium-level map, or null when it is not on it.

@@ -1,4 +1,4 @@
--- Run after migration 0030. The transaction rolls back all test rows.
+-- Run after migrations 0030 and 0031. The transaction rolls back all test rows.
 begin;
 
 do $$
@@ -52,6 +52,8 @@ begin
     raise exception 'A malformed map position was accepted';
   exception when check_violation then null;
   end;
+  -- The arena floor is placed the same way.
+  insert into public.venue_suites (venue_id, name, map_area) values (v_venue, 'Main Arena Floor', 'arena_floor');
   -- Suites without a map position are unaffected by the unique key.
   insert into public.venue_suites (venue_id, name) values (v_venue, 'Suite 201'), (v_venue, 'Suite 202');
   reset role;

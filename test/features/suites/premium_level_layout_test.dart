@@ -102,7 +102,7 @@ void main() {
 
     test('two clubs, both on the level', () {
       expect(premiumLevelClubs.map((c) => c.mapArea), ['club_a', 'club_b']);
-      expect(premiumLevelAreaCount, 31);
+      expect(premiumLevelAreaCount, 32);
       final (left, top) = premiumLevelFootprint.first;
       final (right, bottom) = premiumLevelFootprint[2];
       for (final club in premiumLevelClubs) {
@@ -152,6 +152,8 @@ void main() {
         expect(planAreaId('Club by 201', 'club_b'), 'club_b');
         expect(planAreaId('Suite 204', null), '204');
         expect(planAreaId('Suite 204', 'unknown_area'), isNull);
+        expect(planAreaId('Main Arena Floor', arenaFloorArea), arenaFloorArea);
+        expect(isClubArea(arenaFloorArea), isFalse);
         expect(isClubArea('club_a'), isTrue);
         expect(isClubArea('204'), isFalse);
       },

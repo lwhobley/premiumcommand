@@ -212,12 +212,19 @@ String? planSuiteNumber(String suiteName) {
   return null;
 }
 
-/// The map outline a premium space is drawn as: its club when [mapArea] names one,
-/// otherwise the suite number in its name. Null when it is not on the map. A space
-/// with a map area never falls back to the digits in its name.
+/// The arena floor as a serviceable space, stored in `venue_suites.map_area`. Its
+/// outline is [premiumLevelBowlEdge]; it is drawn flat at ground level, not raised.
+const arenaFloorArea = 'arena_floor';
+
+/// The map outline a premium space is drawn as: the arena floor or a club when
+/// [mapArea] names one, otherwise the suite number in its name. Null when it is not
+/// on the map. A space with a map area never falls back to the digits in its name.
 String? planAreaId(String name, String? mapArea) {
   if (mapArea != null) {
-    return premiumLevelClubs.any((c) => c.mapArea == mapArea) ? mapArea : null;
+    final known =
+        mapArea == arenaFloorArea ||
+        premiumLevelClubs.any((c) => c.mapArea == mapArea);
+    return known ? mapArea : null;
   }
   return planSuiteNumber(name);
 }
@@ -226,6 +233,6 @@ String? planAreaId(String name, String? mapArea) {
 bool isClubArea(String areaId) =>
     premiumLevelClubs.any((c) => c.mapArea == areaId);
 
-/// Every space drawn on the map: 29 suites and 2 clubs.
+/// Every space drawn on the map: 29 suites, 2 clubs, and the arena floor.
 int get premiumLevelAreaCount =>
-    premiumLevelSuites.length + premiumLevelClubs.length;
+    premiumLevelSuites.length + premiumLevelClubs.length + 1;

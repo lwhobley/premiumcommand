@@ -27,6 +27,7 @@ Migrations live in `supabase/migrations/` and must be applied in order:
 19. `0022_premium_suites_and_orders.sql` through `0028_review_fixes.sql`: suite orders, staff accounts, deployment assignments, chat, and review fixes
 20. `0029_meeting_notes.sql`: meeting notes and the `apply_meeting_note` function
 21. `0030_premium_clubs.sql`: premium clubs at the two ends of the premium level, placed on the map
+22. `0031_arena_floor_service_area.sql`: the arena floor as a serviceable, tappable space on the map
 
 Migration `0011` rejects early floor-plan rows whose `venue_id` differs from their venue space. Migration `0015` rejects existing rows with cross-venue references. Migration `0016` can reject closeouts already signed by the same person in both roles. Investigate and correct these rows before retrying. After applying, run every rolled-back script in `supabase/tests/` against that database. A local PostgreSQL server is required for these checks; Flutter tests do not execute SQL migrations.
 

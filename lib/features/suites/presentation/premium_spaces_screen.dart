@@ -33,7 +33,7 @@ class PremiumSpacesScreen extends ConsumerWidget {
               onPressed: () =>
                   _addSuite(context, ref, session!.venueId, eventId),
               icon: const Icon(Icons.add),
-              label: const Text('Add suite or club'),
+              label: const Text('Add space'),
             )
           : null,
       body: ListView(
@@ -66,8 +66,8 @@ class PremiumSpacesScreen extends ConsumerWidget {
         SnackBar(
           content: Text(
             suites.isEmpty
-                ? 'No suites or clubs are configured for this venue yet. Ask an administrator to add them.'
-                : 'All configured suites and clubs are already assigned to this event.',
+                ? 'No premium spaces are configured for this venue yet. Ask an administrator to add them.'
+                : 'All configured spaces are already assigned to this event.',
           ),
         ),
       );
@@ -76,7 +76,7 @@ class PremiumSpacesScreen extends ConsumerWidget {
     final picked = await showDialog<String>(
       context: context,
       builder: (context) => SimpleDialog(
-        title: const Text('Add suite or club to event'),
+        title: const Text('Add a space to the event'),
         children: [
           for (final s in available)
             SimpleDialogOption(
@@ -128,7 +128,7 @@ class _Board extends ConsumerWidget {
               const SizedBox(height: 12),
               if (items.isEmpty)
                 const Text(
-                  'No suites or clubs assigned to this event yet.',
+                  'No spaces assigned to this event yet.',
                   style: TextStyle(color: AppColors.charcoalMuted),
                 ),
               for (final suite in items)

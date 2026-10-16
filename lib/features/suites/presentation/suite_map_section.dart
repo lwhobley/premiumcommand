@@ -62,7 +62,7 @@ List<List<double>> _points(Iterable<PlanPoint> points) => [
 ];
 
 /// The payload the 3D page draws: plan outlines plus a color per space, keyed by
-/// suite number or club map area. A space with no color is drawn muted.
+/// suite number, club, or arena floor map area. A space with no color is drawn muted.
 Map<String, Object?> buildSuiteColorScene(
   Map<String, Color> colors, {
   String? selected,
@@ -89,6 +89,13 @@ Map<String, Object?> buildSuiteColorScene(
         'muted': !colors.containsKey(club.mapArea),
       },
   ],
+  // Drawn from bowlEdge at ground level; muted keeps the plain floor color.
+  'floor': {
+    'id': arenaFloorArea,
+    'label': 'Arena floor',
+    'color': _hex(colors[arenaFloorArea] ?? SuiteMapStatus.unassigned.color),
+    'muted': !colors.containsKey(arenaFloorArea),
+  },
 };
 
 Map<String, Object?> buildSuiteMapScene(
@@ -141,7 +148,7 @@ class _SuiteMapSectionState extends ConsumerState<SuiteMapSection> {
           ),
           const SizedBox(height: 4),
           const Text(
-            'Tap a suite or club to open its order and the event BEO. Drag to rotate; pinch or scroll to zoom.',
+            'Tap a suite, club, or the arena floor to open its order and the event BEO. Drag to rotate; pinch or scroll to zoom.',
             style: TextStyle(color: AppColors.charcoalMuted, fontSize: 13),
           ),
           const SizedBox(height: 10),
@@ -247,7 +254,8 @@ class _SuitePanel extends ConsumerWidget {
     final club = premiumLevelClubs
         .where((c) => c.mapArea == areaId)
         .firstOrNull;
-    final noun = club == null ? 'suite' : 'club';
+    final isFloor = areaId == arenaFloorArea;
+    final noun = isFloor ? 'arena floor' : (club == null ? 'suite' : 'club');
     final order = assignment == null
         ? null
         : (ref.watch(suiteOrdersProvider(eventId)).value ?? const [])
@@ -264,12 +272,16 @@ class _SuitePanel extends ConsumerWidget {
           children: [
             Text(
               (venueSuite?['name'] as String?) ??
-                  (club == null ? 'Suite $areaId' : 'Premium ${club.label}'),
+                  (isFloor
+                      ? 'Arena floor'
+                      : club == null
+                      ? 'Suite $areaId'
+                      : 'Premium ${club.label}'),
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 10),
             if (venueSuite == null)
-              Text('This $noun is not configured for the venue yet.')
+              Text('The $noun is not set up as a service area yet.')
             else if (assignment == null) ...[
               const Text(
                 'Not assigned to this event.',
@@ -278,22 +290,16 @@ class _SuitePanel extends ConsumerWidget {
               if (canManage) ...[
                 const SizedBox(height: 12),
                 FilledButton.icon(
-                  onPressed: () => runWrite(
-                    context,
-                    () async {
-                      await ref
-                          .read(planningRepositoryProvider)
-                          .assignSuite(
-                            venueId: venueId,
-                            eventId: eventId,
-                            suiteId: venueSuite['id'] as String,
-                          );
-                      ref.invalidate(suitesProvider(eventId));
-                    },
-                    success: club == null
-                        ? 'Suite added to the event.'
-                        : 'Club added to the event.',
-                  ),
+                  onPressed: () => runWrite(context, () async {
+                    await ref
+                        .read(planningRepositoryProvider)
+                        .assignSuite(
+                          venueId: venueId,
+                          eventId: eventId,
+                          suiteId: venueSuite['id'] as String,
+                        );
+                    ref.invalidate(suitesProvider(eventId));
+                  }, success: 'Added to the event.'),
                   icon: const Icon(Icons.add),
                   label: const Text('Add to this event'),
                 ),
