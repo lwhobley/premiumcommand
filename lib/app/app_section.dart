@@ -16,6 +16,7 @@ import '../features/events/presentation/event_calendar_screen.dart';
 import '../features/events/presentation/event_list_screen.dart';
 import '../features/floor_plan/presentation/floor_plan_studio_screen.dart';
 import '../features/chat/presentation/chat_screen.dart';
+import '../features/meeting_notes/presentation/meeting_notes_screen.dart';
 import '../features/staff/presentation/staff_management_screen.dart';
 
 /// Primary navigation sections. Routes and nav items are both derived from this list.
@@ -112,6 +113,14 @@ enum AppSection {
     permission: AppPermission.viewReports,
     phase: 3,
   ),
+  meetingNotes(
+    path: '/meeting-notes',
+    label: 'Meeting Notes',
+    icon: Icons.edit_note_outlined,
+    // Administrators only. The assistant re-checks this server-side.
+    permission: AppPermission.manageConfiguration,
+    phase: 4,
+  ),
   administration(
     path: '/admin',
     label: 'Administration & Configuration',
@@ -170,6 +179,7 @@ enum AppSection {
       AppSection.chat => const ChatScreen(),
       AppSection.staffManagement => const StaffManagementScreen(),
       AppSection.closeout => const CloseoutScreen(),
+      AppSection.meetingNotes => const MeetingNotesScreen(),
       AppSection.administration => const AdminScreen(),
       AppSection.floorPlanStudio => const FloorPlanStudioScreen(),
     };

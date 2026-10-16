@@ -24,6 +24,8 @@ Migrations live in `supabase/migrations/` and must be applied in order:
 16. `0019_session_bound_push_tokens.sql`: push tokens tied to live Auth sessions
 17. `0020_advisor_hardening.sql`: private trigger functions and distinct floor-plan write policies
 18. `0021_cutx_short_name_seed.sql`: suite count and banquet areas for a venue provisioned as `CUTX`
+19. `0022_premium_suites_and_orders.sql` through `0028_review_fixes.sql`: suite orders, staff accounts, deployment assignments, chat, and review fixes
+20. `0029_meeting_notes.sql`: meeting notes and the `apply_meeting_note` function
 
 Migration `0011` rejects early floor-plan rows whose `venue_id` differs from their venue space. Migration `0015` rejects existing rows with cross-venue references. Migration `0016` can reject closeouts already signed by the same person in both roles. Investigate and correct these rows before retrying. After applying, run every rolled-back script in `supabase/tests/` against that database. A local PostgreSQL server is required for these checks; Flutter tests do not execute SQL migrations.
 
@@ -77,7 +79,22 @@ update app_private.push_config
 
 Leave it null to disable pushes. Do not copy a production URL into staging or local configuration. Confirm a notification reaches a real device and inspect the function and database logs before marking push delivery verified.
 
-## 6. Before go-live
+## 6. Meeting notes assistant
+
+Administrators (anyone with `manage_configuration`) can write meeting notes and ask Claude which event they are about and what should change. The `meeting-notes-ai` Edge Function calls the Anthropic API with the `claude-opus-5-5` model. It reads and writes as the signed-in administrator, so row level security applies, and it only stores a proposal: nothing on the event changes until an administrator applies it.
+
+Deploy the function and give it an Anthropic API key from the Anthropic Console **(manual)**:
+
+```bash
+supabase functions deploy meeting-notes-ai
+supabase secrets set ANTHROPIC_API_KEY=<key>
+```
+
+The key exists only as a function secret. Never put it in the app or this repository. Without it, the app still records notes and an administrator can link them to an event by hand; the assistant button explains that it is not set up.
+
+The model and effort level are constants at the top of `supabase/functions/meeting-notes-ai/index.ts`. Requests use the API's server-side refusal fallback (`fallbacks: "default"`), so a safety decline is retried on Anthropic's recommended fallback model.
+
+## 7. Before go-live
 
 - Run `flutter analyze` and `flutter test`.
 - Apply all migrations, then run both advisors.

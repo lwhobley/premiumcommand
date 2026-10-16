@@ -9,6 +9,7 @@ import '../../../core/time/venue_time.dart';
 import '../../../core/widgets/status_chip.dart';
 import '../../auth/application/session_controller.dart';
 import '../../floor_plan/presentation/event_floor_plan_card.dart';
+import '../../meeting_notes/presentation/event_meeting_notes_card.dart';
 import '../application/event_providers.dart';
 import '../domain/event_lifecycle.dart';
 import '../domain/ops_event.dart';
@@ -81,6 +82,7 @@ class _WorkspaceBody extends ConsumerWidget {
           Text(event.notes),
         ],
         const SizedBox(height: 24),
+        EventMeetingNotesCard(eventId: event.id),
         _LifecyclePanel(snapshot: snapshot, permissions: permissions, onMove: (to) => _run(context, () => actions.moveTo(snapshot, to))),
         const SizedBox(height: 24),
         Text('Department readiness',

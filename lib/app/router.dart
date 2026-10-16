@@ -11,6 +11,7 @@ import '../features/beo/presentation/beo_screen.dart';
 import '../features/chat/presentation/chat_screen.dart';
 import '../features/events/presentation/event_create_screen.dart';
 import '../features/events/presentation/event_workspace_screen.dart';
+import '../features/meeting_notes/presentation/meeting_note_editor_screen.dart';
 import '../features/staff/presentation/staff_profile_screen.dart';
 import 'app_section.dart';
 import 'more_screen.dart';
@@ -55,6 +56,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           !AppSection.beoManagement.allows(session.permissions)) {
         return _homeFor(session);
       }
+      if (location.startsWith('${AppSection.meetingNotes.path}/') &&
+          !AppSection.meetingNotes.allows(session.permissions)) {
+        return _homeFor(session);
+      }
       return null;
     },
     routes: [
@@ -78,6 +83,17 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/beo/event/:eventId',
             builder: (context, state) =>
                 BeoScreen(eventId: state.pathParameters['eventId']!),
+          ),
+          GoRoute(
+            path: '/meeting-notes/new',
+            builder: (context, state) => MeetingNoteEditorScreen(
+              initialEventId: state.uri.queryParameters['event'],
+            ),
+          ),
+          GoRoute(
+            path: '/meeting-notes/:id',
+            builder: (context, state) =>
+                MeetingNoteEditorScreen(noteId: state.pathParameters['id']!),
           ),
           GoRoute(
             path: '/menu',
