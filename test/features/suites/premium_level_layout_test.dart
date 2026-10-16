@@ -159,4 +159,30 @@ void main() {
       },
     );
   });
+
+  group('renaming spaces', () {
+    test('a pinned space stays in place whatever it is called', () {
+      expect(planAreaId('Suite 304', '204'), '204');
+      expect(planAreaId('Owners Lounge', '204'), '204');
+      expect(planAreaId('Suite 204', '999'), isNull);
+      // Unpinned spaces still match by the plan number in their name.
+      expect(planAreaId('Suite 207', null), '207');
+    });
+
+    test('every map position can be chosen once', () {
+      final ids = mapPositions.map((p) => p.id).toList();
+      expect(ids, hasLength(premiumLevelAreaCount));
+      expect(ids.toSet(), hasLength(ids.length));
+      expect(ids.every(isMapArea), isTrue);
+    });
+
+    test('map labels come from the name', () {
+      expect(mapLabel('Suite 304'), '304');
+      expect(mapLabel('suite 12A'), '12A');
+      expect(mapLabel('Premium Club A'), 'Club A');
+      expect(mapLabel('Owners Club'), 'Owners Club');
+      expect(mapLabel('The Very Long Executive Club Name'), 'The Very Long E…');
+      expect(mapLabel('Suite'), 'Suite');
+    });
+  });
 }

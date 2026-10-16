@@ -63,9 +63,17 @@ List<List<double>> _points(Iterable<PlanPoint> points) => [
 
 /// The payload the 3D page draws: plan outlines plus a color per space, keyed by
 /// suite number, club, or arena floor map area. A space with no color is drawn muted.
+/// Map labels by map area, from each space's configured name. Positions with no
+/// space keep their plan label.
+Map<String, String> mapLabelsFor(List<Map<String, dynamic>> venueSuites) => {
+  for (final s in venueSuites)
+    ?_areaOf(s): mapLabel(s['name'] as String),
+};
+
 Map<String, Object?> buildSuiteColorScene(
   Map<String, Color> colors, {
   String? selected,
+  Map<String, String> labels = const {},
 }) => {
   'center': [610.5, 415.2],
   'bowlEdge': _points(premiumLevelBowlEdge),
@@ -75,7 +83,7 @@ Map<String, Object?> buildSuiteColorScene(
     for (final suite in premiumLevelSuites)
       {
         'id': suite.number,
-        'label': suite.number,
+        'label': labels[suite.number] ?? suite.number,
         'points': _points(suite.points),
         'color': _hex(colors[suite.number] ?? SuiteMapStatus.unassigned.color),
         'muted': !colors.containsKey(suite.number),
@@ -83,7 +91,7 @@ Map<String, Object?> buildSuiteColorScene(
     for (final club in premiumLevelClubs)
       {
         'id': club.mapArea,
-        'label': club.label,
+        'label': labels[club.mapArea] ?? club.label,
         'points': _points(club.points),
         'color': _hex(colors[club.mapArea] ?? SuiteMapStatus.unassigned.color),
         'muted': !colors.containsKey(club.mapArea),
@@ -92,7 +100,7 @@ Map<String, Object?> buildSuiteColorScene(
   // Drawn from bowlEdge at ground level; muted keeps the plain floor color.
   'floor': {
     'id': arenaFloorArea,
-    'label': 'Arena floor',
+    'label': labels[arenaFloorArea] ?? 'Arena floor',
     'color': _hex(colors[arenaFloorArea] ?? SuiteMapStatus.unassigned.color),
     'muted': !colors.containsKey(arenaFloorArea),
   },
@@ -101,9 +109,12 @@ Map<String, Object?> buildSuiteColorScene(
 Map<String, Object?> buildSuiteMapScene(
   Map<String, SuiteMapStatus> statuses, {
   String? selected,
-}) => buildSuiteColorScene({
-  for (final entry in statuses.entries) entry.key: entry.value.color,
-}, selected: selected);
+  Map<String, String> labels = const {},
+}) => buildSuiteColorScene(
+  {for (final entry in statuses.entries) entry.key: entry.value.color},
+  selected: selected,
+  labels: labels,
+);
 
 /// Clickable 3D premium-level map for the selected event. Hidden when none of
 /// the venue's configured suites match a suite number on the plan.
@@ -183,7 +194,11 @@ class _SuiteMapSectionState extends ConsumerState<SuiteMapSection> {
             child: SizedBox(
               height: 460,
               child: SuiteMapView(
-                sceneData: buildSuiteMapScene(statuses, selected: _selected),
+                sceneData: buildSuiteMapScene(
+                  statuses,
+                  selected: _selected,
+                  labels: mapLabelsFor(venueSuites),
+                ),
                 onSuiteTap: _open,
               ),
             ),

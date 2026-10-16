@@ -82,6 +82,28 @@ class PlanningRepository {
     });
   }
 
+  /// Renames or moves a space. Its event assignments, staff, and orders follow it.
+  /// Row-level security allows this only with manage_configuration.
+  Future<void> updateVenueSuite(
+    String suiteId, {
+    required String name,
+    required String location,
+    required String serviceZone,
+    int? capacity,
+    String? mapArea,
+  }) async {
+    await _client
+        .from('venue_suites')
+        .update({
+          'name': name,
+          'location': location,
+          'service_zone': serviceZone,
+          'capacity': capacity,
+          'map_area': mapArea,
+        })
+        .eq('id', suiteId);
+  }
+
   Future<List<Map<String, dynamic>>> listVenueSuites(String venueId) async {
     final rows = await _client
         .from('venue_suites')

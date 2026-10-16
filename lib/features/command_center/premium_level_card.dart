@@ -97,7 +97,12 @@ class PremiumLevelCard extends ConsumerWidget {
           child: SizedBox(
             height: 360,
             child: SuiteMapView(
-              sceneData: buildSuiteColorScene(colors),
+              sceneData: buildSuiteColorScene(
+                colors,
+                labels: mapLabelsFor(
+                  ref.watch(venueSuitesProvider(venueId)).value ?? const [],
+                ),
+              ),
               onSuiteTap: (area) {
                 if (id == null) {
                   ScaffoldMessenger.of(context).showSnackBar(

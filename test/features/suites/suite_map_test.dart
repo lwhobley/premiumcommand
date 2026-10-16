@@ -89,6 +89,22 @@ void main() {
       expect(clubB['label'], 'Club B');
       expect(clubB['muted'], isFalse);
       expect(suites.firstWhere((s) => s['id'] == 'club_a')['muted'], isTrue);
+      final renamed =
+          (buildSuiteMapScene(
+                    const {},
+                    labels: mapLabelsFor([
+                      {'id': 's1', 'name': 'Suite 304', 'map_area': '204'},
+                      {'id': 's2', 'name': 'Owners Club', 'map_area': 'club_a'},
+                    ]),
+                  )['suites']!
+                  as List)
+              .cast<Map<String, Object?>>();
+      expect(renamed.firstWhere((s) => s['id'] == '204')['label'], '304');
+      expect(
+        renamed.firstWhere((s) => s['id'] == 'club_a')['label'],
+        'Owners Club',
+      );
+      expect(renamed.firstWhere((s) => s['id'] == '205')['label'], '205');
       final floor = scene['floor']! as Map<String, Object?>;
       expect(floor['id'], 'arena_floor');
       expect(floor['muted'], isTrue);

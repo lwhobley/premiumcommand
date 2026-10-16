@@ -1,4 +1,4 @@
--- Run after migrations 0030 and 0031. The transaction rolls back all test rows.
+-- Run after migrations 0030 through 0032. The transaction rolls back all test rows.
 begin;
 
 do $$
@@ -56,7 +56,23 @@ begin
   insert into public.venue_suites (venue_id, name, map_area) values (v_venue, 'Main Arena Floor', 'arena_floor');
   -- Suites without a map position are unaffected by the unique key.
   insert into public.venue_suites (venue_id, name) values (v_venue, 'Suite 201'), (v_venue, 'Suite 202');
+
+  -- An administrator renames and renumbers a space pinned to a plan position; it stays put.
+  insert into public.venue_suites (venue_id, name, map_area) values (v_venue, 'Suite 204', '204');
+  update public.venue_suites set name = 'Suite 304' where venue_id = v_venue and map_area = '204';
+  if not exists (select 1 from public.venue_suites where venue_id = v_venue and name = 'Suite 304' and map_area = '204') then
+    raise exception 'A renamed suite lost its map position';
+  end if;
   reset role;
+
+  -- Others cannot rename spaces.
+  perform set_config('request.jwt.claims', json_build_object('sub', v_manager, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  update public.venue_suites set name = 'Manager rename' where venue_id = v_venue and map_area = '204';
+  reset role;
+  if not exists (select 1 from public.venue_suites where venue_id = v_venue and name = 'Suite 304') then
+    raise exception 'A manager renamed a space';
+  end if;
   -- Another venue can use the same position.
   insert into public.venue_suites (venue_id, name, map_area) values (v_other_venue, 'Premium Club A', 'club_a');
 
