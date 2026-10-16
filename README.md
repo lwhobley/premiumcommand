@@ -26,6 +26,8 @@ The initial venue has three confirmed banquet areas: Main Arena Floor, Premium L
 | Event Closeout & Reports (recap, manager and director sign-off, PDF, trends) | Built |
 | Administration (suites, checklist library) | Built (partial: see below) |
 | Meeting Notes (administrators; Claude finds the event and proposes changes, applied after review) | Built |
+| BEO and menu import (administrators; Claude reads a PDF, photo, or pasted text into the BEO editor or menu) | Built |
+| Premium spaces on the map: 29 suites, 2 premium clubs, and the arena floor; renamable by administrators | Built |
 | Offline queue for dispatch and task updates, with conflict review | Built |
 | Offline read cache for dispatch | Built |
 | Security hardening for tenant links and workflow rules | Prepared in migrations `0015`–`0017`; database validation pending |
@@ -73,7 +75,9 @@ The database rules are covered by rolled-back SQL checks run against the live pr
 - `lib/features/sync` — offline queue, sync banner
 - `lib/features/admin` — administration
 - `lib/features/meeting_notes` — meeting notes, assistant review, and the event's notes card
+- `lib/features/document_import` — BEO and menu import with the document assistant
 - `supabase/functions/meeting-notes-ai` — the meeting notes assistant (Anthropic API)
+- `supabase/functions/document-ai` — reads BEOs and menus (Anthropic API)
 - `supabase/migrations` — schema, RLS, state-machine functions, audit, performance fixes
 - `docs` — deployment guide and security review
 

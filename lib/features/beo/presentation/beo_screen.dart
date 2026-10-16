@@ -12,6 +12,9 @@ import '../../events/domain/readiness.dart';
 import '../../planning/application/planning_providers.dart';
 import '../../planning/data/planning_repository.dart';
 import '../../planning/presentation/planning_widgets.dart';
+import '../../document_import/domain/document_import.dart';
+import '../../document_import/presentation/document_import_screen.dart';
+import '../../operations/application/operations_providers.dart';
 import '../domain/beo.dart';
 
 /// BEO management: approved content, the approval queue, revision history, and department acknowledgment.
@@ -54,6 +57,9 @@ class _BeoBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final beo = ref.watch(beoProvider(eventId));
     final canEdit = permissions.contains(AppPermission.manageEvents);
+    // The document assistant is for administrators only.
+    final canImport =
+        canEdit && permissions.contains(AppPermission.manageConfiguration);
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -70,11 +76,23 @@ class _BeoBody extends ConsumerWidget {
                   style: TextStyle(color: AppColors.charcoalMuted),
                 ),
                 const SizedBox(height: 12),
-                if (canEdit)
-                  FilledButton(
-                    onPressed: () => _create(context, ref),
-                    child: const Text('Create BEO'),
-                  ),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    if (canEdit)
+                      FilledButton(
+                        onPressed: () => _create(context, ref),
+                        child: const Text('Create BEO'),
+                      ),
+                    if (canImport)
+                      OutlinedButton.icon(
+                        onPressed: () => _import(context, ref, null),
+                        icon: const Icon(Icons.auto_awesome),
+                        label: const Text('Import with AI'),
+                      ),
+                  ],
+                ),
               ],
             );
           }
@@ -119,10 +137,22 @@ class _BeoBody extends ConsumerWidget {
                 ),
               const SizedBox(height: 12),
               if (canEdit && pending == null && bundle.latest != null)
-                OutlinedButton.icon(
-                  onPressed: () => _propose(context, ref, bundle),
-                  icon: const Icon(Icons.edit_note),
-                  label: const Text('Propose revision'),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () => _propose(context, ref, bundle),
+                      icon: const Icon(Icons.edit_note),
+                      label: const Text('Propose revision'),
+                    ),
+                    if (canImport)
+                      OutlinedButton.icon(
+                        onPressed: () => _import(context, ref, bundle),
+                        icon: const Icon(Icons.auto_awesome),
+                        label: const Text('Import revision with AI'),
+                      ),
+                  ],
                 ),
               const SizedBox(height: 20),
               Text(
@@ -171,6 +201,81 @@ class _BeoBody extends ConsumerWidget {
           );
       ref.invalidate(beoProvider(eventId));
     }, success: 'BEO created. It needs approval before it is published.');
+  }
+
+  /// Reads a BEO document with the assistant, then opens the usual editor with what it
+  /// found: a new BEO when there is none, otherwise a revision for approval. Chosen menu
+  /// items are added to the event menu once the BEO is saved.
+  Future<void> _import(
+    BuildContext context,
+    WidgetRef ref,
+    BeoBundle? bundle,
+  ) async {
+    final outcome = await showDocumentImport(
+      context,
+      kind: ImportKind.beo,
+      eventId: eventId,
+    );
+    final content = outcome?.result.content;
+    if (outcome == null || content == null || !context.mounted) return;
+    final result = outcome.result;
+    final draft = await showDialog<_EditorResult>(
+      context: context,
+      builder: (_) => _BeoEditorDialog(
+        title: bundle == null ? 'Create BEO' : 'Propose revision',
+        askTitle: bundle == null,
+        initial: content,
+        initialTitle: result.title.isEmpty ? null : result.title,
+        initialSummary: result.summary.isEmpty
+            ? 'Imported from a document'
+            : result.summary,
+      ),
+    );
+    if (draft == null || !context.mounted) return;
+    final session = ref.read(sessionProvider);
+    await runWrite(
+      context,
+      () async {
+        final planning = ref.read(planningRepositoryProvider);
+        if (bundle == null) {
+          await planning.createBeo(
+            eventId: eventId,
+            title: draft.title!,
+            content: draft.content,
+            summary: draft.summary,
+          );
+        } else {
+          await planning.proposeRevision(
+            beoId: bundle.beoId,
+            content: draft.content,
+            summary: draft.summary,
+            expectedRevision: bundle.latest!.revisionNo,
+          );
+        }
+        ref.invalidate(beoProvider(eventId));
+        if (session != null && outcome.menuItems.isNotEmpty) {
+          final operations = ref.read(operationsRepositoryProvider);
+          for (final item in outcome.menuItems) {
+            await operations.addMenuItem(
+              venueId: session.venueId,
+              eventId: eventId,
+              name: item.name,
+              course: item.course,
+              allergens: item.allergens,
+              dietaryTags: item.dietaryTags,
+            );
+          }
+          ref.invalidate(menuProvider(eventId));
+        }
+      },
+      success: [
+        bundle == null
+            ? 'BEO created. It needs approval before it is published.'
+            : 'Revision proposed for approval.',
+        if (outcome.menuItems.isNotEmpty)
+          '${outcome.menuItems.length} menu ${outcome.menuItems.length == 1 ? 'item' : 'items'} added.',
+      ].join(' '),
+    );
   }
 
   Future<void> _propose(
@@ -446,11 +551,17 @@ class _BeoEditorDialog extends StatefulWidget {
     required this.title,
     this.initial,
     this.askTitle = false,
+    this.initialTitle,
+    this.initialSummary,
   });
 
   final String title;
   final BeoContent? initial;
   final bool askTitle;
+
+  /// Prefilled BEO title and revision summary, for example from an imported document.
+  final String? initialTitle;
+  final String? initialSummary;
 
   @override
   State<_BeoEditorDialog> createState() => _BeoEditorDialogState();
@@ -458,7 +569,7 @@ class _BeoEditorDialog extends StatefulWidget {
 
 class _BeoEditorDialogState extends State<_BeoEditorDialog> {
   late final _beoTitle = TextEditingController(
-    text: widget.askTitle ? 'BEO' : '',
+    text: widget.askTitle ? (widget.initialTitle ?? 'BEO') : '',
   );
   late final _guests = TextEditingController(
     text: '${widget.initial?.guests ?? 0}',
@@ -480,7 +591,7 @@ class _BeoEditorDialogState extends State<_BeoEditorDialog> {
     text: widget.initial?.specialRequests ?? '',
   );
   late final _summary = TextEditingController(
-    text: widget.askTitle ? 'Initial BEO' : '',
+    text: widget.initialSummary ?? (widget.askTitle ? 'Initial BEO' : ''),
   );
   late final Set<Department> _departments = {...?widget.initial?.departments};
   String? _error;

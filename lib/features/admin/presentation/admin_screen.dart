@@ -85,7 +85,7 @@ class AdminScreen extends ConsumerWidget {
               canConfigure: canConfigure,
             ),
             const SizedBox(height: 8),
-            _SuiteList(venueId: session.venueId),
+            _SuiteList(venueId: session.venueId, canConfigure: canConfigure),
           ],
           const SizedBox(height: 20),
           if (backendAvailable && session != null && canConfigure) ...[
@@ -130,34 +130,60 @@ class AdminScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _addSuite(
-    BuildContext context,
-    WidgetRef ref,
-    String venueId,
-  ) async {
-    final existing = await ref.read(venueSuitesProvider(venueId).future);
-    if (!context.mounted) return;
-    final draft = await showDialog<_SuiteDraft>(
-      context: context,
-      builder: (_) => _SuiteDialog(
-        placedClubs: {for (final s in existing) ?(s['map_area'] as String?)},
-      ),
-    );
-    if (draft == null || !context.mounted) return;
-    await runWrite(context, () async {
-      await ref
-          .read(planningRepositoryProvider)
-          .addVenueSuite(
-            venueId: venueId,
-            name: draft.name,
-            location: draft.location,
-            serviceZone: draft.zone,
-            capacity: draft.capacity,
-            mapArea: draft.mapArea,
-          );
-      ref.invalidate(venueSuitesProvider(venueId));
-    }, success: 'Added.');
-  }
+  Future<void> _addSuite(BuildContext context, WidgetRef ref, String venueId) =>
+      _editSpace(context, ref, venueId);
+}
+
+/// Adds a premium space, or edits [space] (a `venue_suites` row): its name or number,
+/// its place on the map, and its details. Administrators only; row level security
+/// enforces manage_configuration.
+Future<void> _editSpace(
+  BuildContext context,
+  WidgetRef ref,
+  String venueId, {
+  Map<String, dynamic>? space,
+}) async {
+  final existing = await ref.read(venueSuitesProvider(venueId).future);
+  if (!context.mounted) return;
+  final draft = await showDialog<_SuiteDraft>(
+    context: context,
+    builder: (_) => _SuiteDialog(
+      initial: space,
+      takenPositions: {
+        for (final s in existing)
+          if (s['id'] != space?['id']) ?(s['map_area'] as String?),
+      },
+      takenNames: {
+        for (final s in existing)
+          if (s['id'] != space?['id']) s['name'] as String,
+      },
+    ),
+  );
+  if (draft == null || !context.mounted) return;
+  final repo = ref.read(planningRepositoryProvider);
+  await runWrite(context, () async {
+    if (space == null) {
+      await repo.addVenueSuite(
+        venueId: venueId,
+        name: draft.name,
+        location: draft.location,
+        serviceZone: draft.zone,
+        capacity: draft.capacity,
+        mapArea: draft.mapArea,
+      );
+    } else {
+      await repo.updateVenueSuite(
+        space['id'] as String,
+        name: draft.name,
+        location: draft.location,
+        serviceZone: draft.zone,
+        capacity: draft.capacity,
+        mapArea: draft.mapArea,
+      );
+    }
+    ref.invalidate(venueSuitesProvider(venueId));
+    ref.invalidate(suitesProvider);
+  }, success: space == null ? 'Added.' : 'Saved.');
 }
 
 class _ServiceSuiteCountCard extends ConsumerWidget {
@@ -330,9 +356,10 @@ class _MinutesDialogState extends State<_MinutesDialog> {
 }
 
 class _SuiteList extends ConsumerWidget {
-  const _SuiteList({required this.venueId});
+  const _SuiteList({required this.venueId, required this.canConfigure});
 
   final String venueId;
+  final bool canConfigure;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -356,15 +383,20 @@ class _SuiteList extends ConsumerWidget {
                   title: Text(s['name'] as String),
                   subtitle: Text(
                     [
+                      _positionLabel(s),
                       if ((s['location'] as String?)?.isNotEmpty ?? false)
                         s['location'] as String,
                       if ((s['service_zone'] as String?)?.isNotEmpty ?? false)
                         'Zone ${s['service_zone']}',
                       if (s['capacity'] != null) 'Capacity ${s['capacity']}',
-                      if (_clubLabel(s['map_area'] as String?) case final club?)
-                        '$club on the map',
                     ].join(' · '),
                   ),
+                  trailing: canConfigure
+                      ? const Icon(Icons.edit_outlined)
+                      : null,
+                  onTap: canConfigure
+                      ? () => _editSpace(context, ref, venueId, space: s)
+                      : null,
                 ),
               ),
           ],
@@ -372,6 +404,17 @@ class _SuiteList extends ConsumerWidget {
       },
     );
   }
+}
+
+/// Where a space is on the map, for the list.
+String _positionLabel(Map<String, dynamic> space) {
+  final area = planAreaId(
+    space['name'] as String,
+    space['map_area'] as String?,
+  );
+  if (area == null) return 'Not on the map';
+  final position = mapPositions.where((p) => p.id == area).firstOrNull;
+  return 'Map: ${position?.label ?? area}';
 }
 
 class _TemplateList extends ConsumerWidget {
@@ -410,10 +453,6 @@ class _TemplateList extends ConsumerWidget {
   }
 }
 
-String? _clubLabel(String? mapArea) => mapArea == arenaFloorArea
-    ? 'Arena floor'
-    : premiumLevelClubs.where((c) => c.mapArea == mapArea).firstOrNull?.label;
-
 class _SuiteDraft {
   const _SuiteDraft({
     required this.name,
@@ -428,26 +467,51 @@ class _SuiteDraft {
   final String zone;
   final int? capacity;
 
-  /// The club outline this space is drawn as; null for a suite.
+  /// The map position: a plan suite number, a club, or the arena floor; null when
+  /// the space is not on the map.
   final String? mapArea;
 }
 
 class _SuiteDialog extends StatefulWidget {
-  const _SuiteDialog({required this.placedClubs});
+  const _SuiteDialog({
+    this.initial,
+    required this.takenPositions,
+    required this.takenNames,
+  });
 
-  /// Clubs already placed on the map, which cannot be placed twice.
-  final Set<String> placedClubs;
+  /// The space being edited, or null to add one.
+  final Map<String, dynamic>? initial;
+
+  /// Map positions other spaces already use.
+  final Set<String> takenPositions;
+
+  /// Names other spaces already use. Names are unique per venue.
+  final Set<String> takenNames;
 
   @override
   State<_SuiteDialog> createState() => _SuiteDialogState();
 }
 
 class _SuiteDialogState extends State<_SuiteDialog> {
-  final _name = TextEditingController();
-  final _location = TextEditingController();
-  final _zone = TextEditingController();
-  final _capacity = TextEditingController();
-  String? _mapArea;
+  late final _name = TextEditingController(
+    text: widget.initial?['name'] as String? ?? '',
+  );
+  late final _location = TextEditingController(
+    text: widget.initial?['location'] as String? ?? '',
+  );
+  late final _zone = TextEditingController(
+    text: widget.initial?['service_zone'] as String? ?? '',
+  );
+  late final _capacity = TextEditingController(
+    text: widget.initial?['capacity']?.toString() ?? '',
+  );
+  // An existing space keeps the position the map shows today, pinned from now on.
+  late String? _mapArea = widget.initial == null
+      ? null
+      : planAreaId(
+          widget.initial!['name'] as String,
+          widget.initial!['map_area'] as String?,
+        );
   String? _error;
 
   @override
@@ -458,14 +522,63 @@ class _SuiteDialogState extends State<_SuiteDialog> {
     super.dispose();
   }
 
+  void _save() {
+    final name = _name.text.trim();
+    if (name.isEmpty) {
+      setState(() => _error = 'Enter a name or number.');
+      return;
+    }
+    if (widget.takenNames.contains(name)) {
+      setState(() => _error = 'Another space is already called $name.');
+      return;
+    }
+    final capText = _capacity.text.trim();
+    final capacity = capText.isEmpty ? null : int.tryParse(capText);
+    if (capText.isNotEmpty && (capacity == null || capacity < 0)) {
+      setState(() => _error = 'Capacity must be a whole number.');
+      return;
+    }
+    // A new suite named with a free plan number goes to that position.
+    var mapArea = _mapArea;
+    if (widget.initial == null && mapArea == null) {
+      final number = planSuiteNumber(name);
+      if (number != null && !widget.takenPositions.contains(number)) {
+        mapArea = number;
+      }
+    }
+    Navigator.pop(
+      context,
+      _SuiteDraft(
+        name: name,
+        location: _location.text.trim(),
+        zone: _zone.text.trim(),
+        capacity: capacity,
+        mapArea: mapArea,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final editing = widget.initial != null;
     return AlertDialog(
-      title: const Text('Add premium space'),
+      title: Text(editing ? 'Edit space' : 'Add premium space'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            TextField(
+              controller: _name,
+              decoration: InputDecoration(
+                labelText: 'Name or number',
+                hintText: 'Suite 204, Owners Club, Main Arena Floor',
+                helperText: editing
+                    ? 'Renaming keeps the space in the same place on the map.'
+                    : null,
+                errorText: _error,
+              ),
+            ),
+            const SizedBox(height: 10),
             DropdownButtonFormField<String?>(
               initialValue: _mapArea,
               isExpanded: true,
@@ -473,32 +586,19 @@ class _SuiteDialogState extends State<_SuiteDialog> {
               items: [
                 const DropdownMenuItem(
                   value: null,
-                  child: Text('Suite: matched by the number in its name'),
+                  child: Text('Not on the map'),
                 ),
-                for (final club in premiumLevelClubs)
-                  if (!widget.placedClubs.contains(club.mapArea))
+                for (final position in mapPositions)
+                  if (!widget.takenPositions.contains(position.id))
                     DropdownMenuItem(
-                      value: club.mapArea,
+                      value: position.id,
                       child: Text(
-                        '${club.label}, ${club.place}',
+                        position.label,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                if (!widget.placedClubs.contains(arenaFloorArea))
-                  const DropdownMenuItem(
-                    value: arenaFloorArea,
-                    child: Text('Arena floor, the open center'),
-                  ),
               ],
               onChanged: (value) => setState(() => _mapArea = value),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _name,
-              decoration: InputDecoration(
-                labelText: _mapArea == null ? 'Suite name' : 'Name',
-                errorText: _error,
-              ),
             ),
             const SizedBox(height: 10),
             TextField(
@@ -526,35 +626,7 @@ class _SuiteDialogState extends State<_SuiteDialog> {
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancel'),
         ),
-        FilledButton(
-          onPressed: () {
-            if (_name.text.trim().isEmpty) {
-              setState(
-                () => _error = _mapArea == null
-                    ? 'Name the suite.'
-                    : 'Name this space.',
-              );
-              return;
-            }
-            final capText = _capacity.text.trim();
-            final capacity = capText.isEmpty ? null : int.tryParse(capText);
-            if (capText.isNotEmpty && (capacity == null || capacity < 0)) {
-              setState(() => _error = 'Capacity must be a whole number.');
-              return;
-            }
-            Navigator.pop(
-              context,
-              _SuiteDraft(
-                name: _name.text.trim(),
-                location: _location.text.trim(),
-                zone: _zone.text.trim(),
-                capacity: capacity,
-                mapArea: _mapArea,
-              ),
-            );
-          },
-          child: const Text('Add'),
-        ),
+        FilledButton(onPressed: _save, child: Text(editing ? 'Save' : 'Add')),
       ],
     );
   }

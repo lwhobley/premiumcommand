@@ -216,17 +216,39 @@ String? planSuiteNumber(String suiteName) {
 /// outline is [premiumLevelBowlEdge]; it is drawn flat at ground level, not raised.
 const arenaFloorArea = 'arena_floor';
 
-/// The map outline a premium space is drawn as: the arena floor or a club when
-/// [mapArea] names one, otherwise the suite number in its name. Null when it is not
-/// on the map. A space with a map area never falls back to the digits in its name.
+/// The map outline a premium space is drawn as. [mapArea] (`venue_suites.map_area`)
+/// pins it to a plan suite number, a club, or the arena floor, so its name and number
+/// can change freely. A space without one falls back to the plan number in its name.
+/// Null when it is not on the map.
 String? planAreaId(String name, String? mapArea) {
-  if (mapArea != null) {
-    final known =
-        mapArea == arenaFloorArea ||
-        premiumLevelClubs.any((c) => c.mapArea == mapArea);
-    return known ? mapArea : null;
-  }
+  if (mapArea != null) return isMapArea(mapArea) ? mapArea : null;
   return planSuiteNumber(name);
+}
+
+/// True when [areaId] is a position on the map: a plan suite number, a club, or the floor.
+bool isMapArea(String areaId) =>
+    areaId == arenaFloorArea ||
+    premiumLevelClubs.any((c) => c.mapArea == areaId) ||
+    premiumLevelSuites.any((s) => s.number == areaId);
+
+/// Every position a space can be placed on, with a description for choosing it.
+List<({String id, String label})> get mapPositions => [
+  for (final suite in premiumLevelSuites)
+    (id: suite.number, label: 'Plan suite ${suite.number}'),
+  for (final club in premiumLevelClubs)
+    (id: club.mapArea, label: '${club.label}, ${club.place}'),
+  (id: arenaFloorArea, label: 'Arena floor, the open center'),
+];
+
+/// The short label drawn on the map for a space: its name without a leading
+/// "Suite" or "Premium", shortened to fit ('Suite 304' -> '304').
+String mapLabel(String name) {
+  final short = name.trim().replaceFirst(
+    RegExp(r'^(suite|premium)\s+', caseSensitive: false),
+    '',
+  );
+  final label = short.isEmpty ? name.trim() : short;
+  return label.length <= 16 ? label : '${label.substring(0, 15)}…';
 }
 
 /// True when [areaId] is a club rather than a suite.
