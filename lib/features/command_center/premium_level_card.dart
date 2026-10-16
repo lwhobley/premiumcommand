@@ -4,14 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_theme.dart';
 import '../planning/application/planning_providers.dart';
 import '../staffing/domain/staffing.dart';
-import '../suites/domain/premium_level_layout.dart';
 import '../suites/domain/suite.dart';
 import '../suites/presentation/suite_map_section.dart';
 import '../suites/presentation/suite_map_view.dart';
 
 /// The premium level, always shown on the Command Center. With an event, suites are colored by
 /// their live state and staff placed in premium spaces are listed beneath. Without one, the map
-/// is shown plain. Tapping a suite opens its panel for the event.
+/// is shown plain. Tapping a suite or club opens its panel for the event.
 class PremiumLevelCard extends ConsumerWidget {
   const PremiumLevelCard({
     super.key,
@@ -40,8 +39,8 @@ class PremiumLevelCard extends ConsumerWidget {
 
     final colors = <String, Color>{};
     for (final a in assignments) {
-      final number = planSuiteNumber(a.suiteName);
-      if (number != null) colors[number] = suiteStateColor(a.state);
+      final area = a.planArea;
+      if (area != null) colors[area] = suiteStateColor(a.state);
     }
     final byId = {for (final a in assignments) a.id: a};
     final onSuites = [
@@ -99,12 +98,12 @@ class PremiumLevelCard extends ConsumerWidget {
             height: 360,
             child: SuiteMapView(
               sceneData: buildSuiteColorScene(colors),
-              onSuiteTap: (number) {
+              onSuiteTap: (area) {
                 if (id == null) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text(
-                        'Add an event to see suite status and orders.',
+                        'Add an event to see suite and club status and orders.',
                       ),
                     ),
                   );
@@ -114,7 +113,7 @@ class PremiumLevelCard extends ConsumerWidget {
                   context,
                   venueId: venueId,
                   eventId: id,
-                  suiteNumber: number,
+                  areaId: area,
                 );
               },
             ),
@@ -123,7 +122,7 @@ class PremiumLevelCard extends ConsumerWidget {
         const SizedBox(height: 10),
         if (id != null && assignments.isEmpty)
           const Text(
-            'No suites are assigned to this event yet. Add them under Premium Spaces.',
+            'No suites or clubs are assigned to this event yet. Add them under Premium Spaces.',
             style: TextStyle(color: AppColors.charcoalMuted),
           )
         else if (id != null) ...[

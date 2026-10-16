@@ -36,8 +36,8 @@ Color suiteStateColor(SuiteState state) => switch (state) {
   SuiteState.closed => AppColors.neutral,
 };
 
-/// Map status by plan suite number. Suites missing from the result are not
-/// assigned to the event.
+/// Map status by map area (suite number or club). Spaces missing from the result are
+/// not assigned to the event.
 Map<String, SuiteMapStatus> suiteMapStatuses(
   List<SuiteAssignment> assignments,
   List<SuiteOrder> orders,
@@ -45,7 +45,7 @@ Map<String, SuiteMapStatus> suiteMapStatuses(
   final orderByAssignment = {for (final o in orders) o.assignmentId: o};
   return {
     for (final a in assignments)
-      ?planSuiteNumber(a.suiteName): switch (orderByAssignment[a.id]?.status) {
+      ?a.planArea: switch (orderByAssignment[a.id]?.status) {
         null => SuiteMapStatus.noOrder,
         SuiteOrderStatus.draft => SuiteMapStatus.draft,
         SuiteOrderStatus.confirmed => SuiteMapStatus.confirmed,
@@ -61,8 +61,8 @@ List<List<double>> _points(Iterable<PlanPoint> points) => [
   for (final p in points) [p.$1, p.$2],
 ];
 
-/// The payload the 3D page draws: plan outlines plus a color per suite.
-/// Scene with one color per suite number. A suite with no color is drawn muted.
+/// The payload the 3D page draws: plan outlines plus a color per space, keyed by
+/// suite number or club map area. A space with no color is drawn muted.
 Map<String, Object?> buildSuiteColorScene(
   Map<String, Color> colors, {
   String? selected,
@@ -79,6 +79,14 @@ Map<String, Object?> buildSuiteColorScene(
         'points': _points(suite.points),
         'color': _hex(colors[suite.number] ?? SuiteMapStatus.unassigned.color),
         'muted': !colors.containsKey(suite.number),
+      },
+    for (final club in premiumLevelClubs)
+      {
+        'id': club.mapArea,
+        'label': club.label,
+        'points': _points(club.points),
+        'color': _hex(colors[club.mapArea] ?? SuiteMapStatus.unassigned.color),
+        'muted': !colors.containsKey(club.mapArea),
       },
   ],
 };
@@ -113,7 +121,7 @@ class _SuiteMapSectionState extends ConsumerState<SuiteMapSection> {
   Widget build(BuildContext context) {
     final venueSuites =
         ref.watch(venueSuitesProvider(widget.venueId)).value ?? const [];
-    if (!venueSuites.any((s) => planSuiteNumber(s['name'] as String) != null)) {
+    if (!venueSuites.any((s) => _areaOf(s) != null)) {
       return const SizedBox.shrink();
     }
     final assignments =
@@ -133,7 +141,7 @@ class _SuiteMapSectionState extends ConsumerState<SuiteMapSection> {
           ),
           const SizedBox(height: 4),
           const Text(
-            'Tap a suite to open its order and the event BEO. Drag to rotate; pinch or scroll to zoom.',
+            'Tap a suite or club to open its order and the event BEO. Drag to rotate; pinch or scroll to zoom.',
             style: TextStyle(color: AppColors.charcoalMuted, fontSize: 13),
           ),
           const SizedBox(height: 10),
@@ -155,7 +163,7 @@ class _SuiteMapSectionState extends ConsumerState<SuiteMapSection> {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      '${status.label} (${status == SuiteMapStatus.unassigned ? premiumLevelSuites.length - statuses.length : statuses.values.where((s) => s == status).length})',
+                      '${status.label} (${status == SuiteMapStatus.unassigned ? premiumLevelAreaCount - statuses.length : statuses.values.where((s) => s == status).length})',
                       style: const TextStyle(fontSize: 12),
                     ),
                   ],
@@ -183,42 +191,46 @@ class _SuiteMapSectionState extends ConsumerState<SuiteMapSection> {
     );
   }
 
-  Future<void> _open(String number) async {
-    setState(() => _selected = number);
+  Future<void> _open(String area) async {
+    setState(() => _selected = area);
     await showSuitePanel(
       context,
       venueId: widget.venueId,
       eventId: widget.eventId,
-      suiteNumber: number,
+      areaId: area,
     );
     if (mounted) setState(() => _selected = null);
   }
 }
 
-/// Opens the suite's event panel: suite state, its order, and the event BEO.
+String? _areaOf(Map<String, dynamic> venueSuite) =>
+    planAreaId(venueSuite['name'] as String, venueSuite['map_area'] as String?);
+
+/// Opens a suite's or club's event panel: its state, its order, and the event BEO.
+/// [areaId] is a suite number on the plan or a club map area.
 Future<void> showSuitePanel(
   BuildContext context, {
   required String venueId,
   required String eventId,
-  required String suiteNumber,
+  required String areaId,
 }) => showModalBottomSheet<void>(
   context: context,
   isScrollControlled: true,
   showDragHandle: true,
   builder: (_) =>
-      _SuitePanel(venueId: venueId, eventId: eventId, suiteNumber: suiteNumber),
+      _SuitePanel(venueId: venueId, eventId: eventId, areaId: areaId),
 );
 
 class _SuitePanel extends ConsumerWidget {
   const _SuitePanel({
     required this.venueId,
     required this.eventId,
-    required this.suiteNumber,
+    required this.areaId,
   });
 
   final String venueId;
   final String eventId;
-  final String suiteNumber;
+  final String areaId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -227,11 +239,15 @@ class _SuitePanel extends ConsumerWidget {
     final timeZone = session?.timeZone ?? 'UTC';
     final venueSuite =
         (ref.watch(venueSuitesProvider(venueId)).value ?? const [])
-            .where((s) => planSuiteNumber(s['name'] as String) == suiteNumber)
+            .where((s) => _areaOf(s) == areaId)
             .firstOrNull;
     final assignment = (ref.watch(suitesProvider(eventId)).value ?? const [])
-        .where((a) => planSuiteNumber(a.suiteName) == suiteNumber)
+        .where((a) => a.planArea == areaId)
         .firstOrNull;
+    final club = premiumLevelClubs
+        .where((c) => c.mapArea == areaId)
+        .firstOrNull;
+    final noun = club == null ? 'suite' : 'club';
     final order = assignment == null
         ? null
         : (ref.watch(suiteOrdersProvider(eventId)).value ?? const [])
@@ -247,12 +263,13 @@ class _SuitePanel extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              (venueSuite?['name'] as String?) ?? 'Suite $suiteNumber',
+              (venueSuite?['name'] as String?) ??
+                  (club == null ? 'Suite $areaId' : 'Premium ${club.label}'),
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 10),
             if (venueSuite == null)
-              const Text('This suite is not configured for the venue yet.')
+              Text('This $noun is not configured for the venue yet.')
             else if (assignment == null) ...[
               const Text(
                 'Not assigned to this event.',
@@ -261,16 +278,22 @@ class _SuitePanel extends ConsumerWidget {
               if (canManage) ...[
                 const SizedBox(height: 12),
                 FilledButton.icon(
-                  onPressed: () => runWrite(context, () async {
-                    await ref
-                        .read(planningRepositoryProvider)
-                        .assignSuite(
-                          venueId: venueId,
-                          eventId: eventId,
-                          suiteId: venueSuite['id'] as String,
-                        );
-                    ref.invalidate(suitesProvider(eventId));
-                  }, success: 'Suite added to the event.'),
+                  onPressed: () => runWrite(
+                    context,
+                    () async {
+                      await ref
+                          .read(planningRepositoryProvider)
+                          .assignSuite(
+                            venueId: venueId,
+                            eventId: eventId,
+                            suiteId: venueSuite['id'] as String,
+                          );
+                      ref.invalidate(suitesProvider(eventId));
+                    },
+                    success: club == null
+                        ? 'Suite added to the event.'
+                        : 'Club added to the event.',
+                  ),
                   icon: const Icon(Icons.add),
                   label: const Text('Add to this event'),
                 ),

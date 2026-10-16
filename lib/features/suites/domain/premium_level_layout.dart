@@ -153,6 +153,55 @@ const List<PlanPoint> premiumLevelFootprint = [
   (164.0, 740.0),
 ];
 
+/// A premium club: one of the two open ends of the premium level, identified as
+/// clubs by the venue operator on October 16, 2026. Not drawn on the supplied plan,
+/// so each outline fills the concourse between the arena floor's edge and the
+/// level's outer edge, from the last suite on one side to the first on the other.
+class ClubOutline {
+  const ClubOutline(this.mapArea, this.label, this.place, this.points);
+
+  /// Stored in `venue_suites.map_area` for the space drawn here.
+  final String mapArea;
+
+  /// Short label on the map.
+  final String label;
+
+  /// Where it is, for people choosing it: 'between suites 229 and 201'.
+  final String place;
+  final List<PlanPoint> points;
+}
+
+const premiumLevelClubs = <ClubOutline>[
+  // Between 229 and 201: from 201's inner corner, along the floor's edge, to 229's.
+  ClubOutline('club_a', 'Club A', 'between suites 229 and 201', [
+    (237.5, 206.0),
+    (252.0, 221.0),
+    (195.0, 318.0),
+    (195.0, 512.4),
+    (252.0, 609.4),
+    (237.5, 624.4),
+    (166.0, 512.4),
+    (166.0, 318.0),
+  ]),
+  // Between 215 and 216: from 215's inner edge, around the floor's edge, to 216's end wall.
+  ClubOutline('club_b', 'Club B', 'between suites 215 and 216', [
+    (906.8, 193.5),
+    (934.0, 145.6),
+    (1000.0, 205.0),
+    (1066.0, 318.0),
+    (1066.0, 512.4),
+    (1000.0, 625.0),
+    (870.3, 718.7),
+    (870.3, 701.9),
+    (862.5, 683.4),
+    (857.8, 665.8),
+    (965.0, 603.9),
+    (1026.0, 512.4),
+    (1026.0, 318.0),
+    (965.0, 226.5),
+  ]),
+];
+
 /// The suite number in a configured suite name ('Suite 204' -> '204'), or
 /// null when the name does not contain one of the plan's numbers.
 String? planSuiteNumber(String suiteName) {
@@ -162,3 +211,21 @@ String? planSuiteNumber(String suiteName) {
   }
   return null;
 }
+
+/// The map outline a premium space is drawn as: its club when [mapArea] names one,
+/// otherwise the suite number in its name. Null when it is not on the map. A space
+/// with a map area never falls back to the digits in its name.
+String? planAreaId(String name, String? mapArea) {
+  if (mapArea != null) {
+    return premiumLevelClubs.any((c) => c.mapArea == mapArea) ? mapArea : null;
+  }
+  return planSuiteNumber(name);
+}
+
+/// True when [areaId] is a club rather than a suite.
+bool isClubArea(String areaId) =>
+    premiumLevelClubs.any((c) => c.mapArea == areaId);
+
+/// Every space drawn on the map: 29 suites and 2 clubs.
+int get premiumLevelAreaCount =>
+    premiumLevelSuites.length + premiumLevelClubs.length;

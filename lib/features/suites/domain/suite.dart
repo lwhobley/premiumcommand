@@ -1,3 +1,5 @@
+import 'premium_level_layout.dart';
+
 /// Suite states: Not Started → Setup In Progress → Ready → Occupied (In Service) → Closing → Closed.
 enum SuiteState {
   notStarted('not_started', 'Not started'),
@@ -12,7 +14,8 @@ enum SuiteState {
   final String code;
   final String label;
 
-  static SuiteState fromCode(String code) => values.firstWhere((s) => s.code == code);
+  static SuiteState fromCode(String code) =>
+      values.firstWhere((s) => s.code == code);
 
   /// The only state a suite may move to next. Null once closed.
   SuiteState? get next => index + 1 < values.length ? values[index + 1] : null;
@@ -21,6 +24,8 @@ enum SuiteState {
   bool get isReadyOrBeyond => index >= SuiteState.ready.index;
 }
 
+/// A suite or club assigned to an event. Clubs are premium spaces too; they are told
+/// apart by [mapArea].
 class SuiteAssignment {
   const SuiteAssignment({
     required this.id,
@@ -36,6 +41,7 @@ class SuiteAssignment {
     this.guestContact = '',
     this.dietaryNotes = '',
     this.specialInstructions = '',
+    this.mapArea,
   });
 
   final String id;
@@ -51,6 +57,12 @@ class SuiteAssignment {
   final String guestContact;
   final String dietaryNotes;
   final String specialInstructions;
+
+  /// The club outline this space is drawn as, from `venue_suites.map_area`.
+  final String? mapArea;
+
+  /// Where this space is on the premium-level map, or null when it is not on it.
+  String? get planArea => planAreaId(suiteName, mapArea);
 
   factory SuiteAssignment.fromJson(Map<String, dynamic> json) {
     final suite = (json['venue_suites'] as Map<String, dynamic>?) ?? const {};
@@ -68,15 +80,20 @@ class SuiteAssignment {
       guestContact: (json['guest_contact'] as String?) ?? '',
       dietaryNotes: (json['dietary_notes'] as String?) ?? '',
       specialInstructions: (json['special_instructions'] as String?) ?? '',
+      mapArea: suite['map_area'] as String?,
     );
   }
 }
 
 /// Counts suites by readiness for the dashboard header.
-({int total, int ready, int notStarted}) suiteSummary(List<SuiteAssignment> suites) {
+({int total, int ready, int notStarted}) suiteSummary(
+  List<SuiteAssignment> suites,
+) {
   return (
     total: suites.length,
-    ready: suites.where((s) => s.state.isReadyOrBeyond && s.state != SuiteState.closed).length,
+    ready: suites
+        .where((s) => s.state.isReadyOrBeyond && s.state != SuiteState.closed)
+        .length,
     notStarted: suites.where((s) => s.state == SuiteState.notStarted).length,
   );
 }

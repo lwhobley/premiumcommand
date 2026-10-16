@@ -93,4 +93,68 @@ void main() {
     expect(planSuiteNumber('Suite 4'), isNull);
     expect(planSuiteNumber('Level 2 Suite 230'), isNull);
   });
+
+  group('premium clubs', () {
+    PlanPoint center(List<PlanPoint> points) => (
+      points.map((p) => p.$1).reduce((a, b) => a + b) / points.length,
+      points.map((p) => p.$2).reduce((a, b) => a + b) / points.length,
+    );
+
+    test('two clubs, both on the level', () {
+      expect(premiumLevelClubs.map((c) => c.mapArea), ['club_a', 'club_b']);
+      expect(premiumLevelAreaCount, 31);
+      final (left, top) = premiumLevelFootprint.first;
+      final (right, bottom) = premiumLevelFootprint[2];
+      for (final club in premiumLevelClubs) {
+        for (final (x, y) in club.points) {
+          expect(x, inInclusiveRange(left, right), reason: club.mapArea);
+          expect(y, inInclusiveRange(top, bottom), reason: club.mapArea);
+        }
+      }
+    });
+
+    test('each club fills its end of the level without covering the floor or a suite', () {
+      // Points just inside the floor's ends must not fall in a club.
+      for (final probe in <PlanPoint>[(205, 415), (1015, 415), (610, 415)]) {
+        expect(_contains(premiumLevelBowlEdge, probe), isTrue);
+        for (final club in premiumLevelClubs) {
+          expect(
+            _contains(club.points, probe),
+            isFalse,
+            reason: '${club.mapArea} $probe',
+          );
+        }
+      }
+      for (final suite in premiumLevelSuites) {
+        final c = center(suite.points);
+        for (final club in premiumLevelClubs) {
+          expect(
+            _contains(club.points, c),
+            isFalse,
+            reason: '${club.mapArea} over ${suite.number}',
+          );
+        }
+      }
+      for (final club in premiumLevelClubs) {
+        final c = (club.mapArea == 'club_a') ? (180.0, 415.0) : (1045.0, 415.0);
+        expect(_contains(club.points, c), isTrue, reason: club.mapArea);
+        expect(
+          premiumLevelSuites.where((s) => _contains(s.points, c)),
+          isEmpty,
+        );
+      }
+    });
+
+    test(
+      'a space with a map area is placed as that club, never by its name',
+      () {
+        expect(planAreaId('Premium Club A', 'club_a'), 'club_a');
+        expect(planAreaId('Club by 201', 'club_b'), 'club_b');
+        expect(planAreaId('Suite 204', null), '204');
+        expect(planAreaId('Suite 204', 'unknown_area'), isNull);
+        expect(isClubArea('club_a'), isTrue);
+        expect(isClubArea('204'), isFalse);
+      },
+    );
+  });
 }

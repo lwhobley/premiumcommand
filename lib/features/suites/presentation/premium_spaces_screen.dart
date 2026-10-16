@@ -8,7 +8,6 @@ import '../../../core/widgets/status_chip.dart';
 import '../../auth/application/session_controller.dart';
 import '../../planning/application/planning_providers.dart';
 import '../../planning/presentation/planning_widgets.dart';
-import '../domain/premium_level_layout.dart';
 import '../domain/suite.dart';
 import 'suite_map_section.dart';
 
@@ -34,7 +33,7 @@ class PremiumSpacesScreen extends ConsumerWidget {
               onPressed: () =>
                   _addSuite(context, ref, session!.venueId, eventId),
               icon: const Icon(Icons.add),
-              label: const Text('Add suite'),
+              label: const Text('Add suite or club'),
             )
           : null,
       body: ListView(
@@ -58,15 +57,17 @@ class PremiumSpacesScreen extends ConsumerWidget {
     final suites = await ref.read(venueSuitesProvider(venueId).future);
     final assigned = await ref.read(suitesProvider(eventId).future);
     final assignedIds = assigned.map((suite) => suite.suiteId).toSet();
-    final available = suites.where((suite) => !assignedIds.contains(suite['id'])).toList();
+    final available = suites
+        .where((suite) => !assignedIds.contains(suite['id']))
+        .toList();
     if (!context.mounted) return;
     if (available.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             suites.isEmpty
-                ? 'No suites are configured for this venue yet. Ask an administrator to add them.'
-                : 'All configured suites are already assigned to this event.',
+                ? 'No suites or clubs are configured for this venue yet. Ask an administrator to add them.'
+                : 'All configured suites and clubs are already assigned to this event.',
           ),
         ),
       );
@@ -75,7 +76,7 @@ class PremiumSpacesScreen extends ConsumerWidget {
     final picked = await showDialog<String>(
       context: context,
       builder: (context) => SimpleDialog(
-        title: const Text('Add suite to event'),
+        title: const Text('Add suite or club to event'),
         children: [
           for (final s in available)
             SimpleDialogOption(
@@ -91,7 +92,7 @@ class PremiumSpacesScreen extends ConsumerWidget {
           .read(planningRepositoryProvider)
           .assignSuite(venueId: venueId, eventId: eventId, suiteId: picked);
       ref.invalidate(suitesProvider(eventId));
-    }, success: 'Suite added to the event.');
+    }, success: 'Added to the event.');
   }
 }
 
@@ -121,13 +122,13 @@ class _Board extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '${summary.ready} of ${summary.total} suites ready · ${summary.notStarted} not started',
+                '${summary.ready} of ${summary.total} spaces ready · ${summary.notStarted} not started',
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 12),
               if (items.isEmpty)
                 const Text(
-                  'No suites assigned to this event yet.',
+                  'No suites or clubs assigned to this event yet.',
                   style: TextStyle(color: AppColors.charcoalMuted),
                 ),
               for (final suite in items)
@@ -138,13 +139,13 @@ class _Board extends ConsumerWidget {
                   onAdvance: () => _advance(context, ref, suite),
                   onEdit: () => _edit(context, ref, suite),
                   onOpenBeo: () => context.push('/beo/event/${suite.eventId}'),
-                  onOpenOrder: planSuiteNumber(suite.suiteName) == null
+                  onOpenOrder: suite.planArea == null
                       ? null
                       : () => showSuitePanel(
                           context,
                           venueId: ref.read(sessionProvider)!.venueId,
                           eventId: eventId,
-                          suiteNumber: planSuiteNumber(suite.suiteName)!,
+                          areaId: suite.planArea!,
                         ),
                 ),
             ],
