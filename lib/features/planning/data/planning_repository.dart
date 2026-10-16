@@ -54,7 +54,7 @@ class PlanningRepository {
   Future<List<SuiteAssignment>> listSuites(String eventId) async {
     final rows = await _client
         .from('suite_event_assignments')
-        .select('*, venue_suites(name, location, service_zone)')
+        .select('*, venue_suites(name, location, service_zone, map_area)')
         .eq('event_id', eventId)
         .order('created_at');
     return rows
@@ -70,6 +70,7 @@ class PlanningRepository {
     required String location,
     required String serviceZone,
     int? capacity,
+    String? mapArea,
   }) async {
     await _client.from('venue_suites').insert({
       'venue_id': venueId,
@@ -77,13 +78,14 @@ class PlanningRepository {
       'location': location,
       'service_zone': serviceZone,
       'capacity': capacity,
+      'map_area': ?mapArea,
     });
   }
 
   Future<List<Map<String, dynamic>>> listVenueSuites(String venueId) async {
     final rows = await _client
         .from('venue_suites')
-        .select('id, name, location, service_zone, capacity')
+        .select('id, name, location, service_zone, capacity, map_area')
         .eq('venue_id', venueId)
         .order('name');
     return rows.cast<Map<String, dynamic>>();

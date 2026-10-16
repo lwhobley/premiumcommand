@@ -67,7 +67,7 @@ class _NewRequestDialogState extends State<_NewRequestDialog> {
             const SizedBox(height: 12),
             TextField(
               controller: _location,
-              decoration: const InputDecoration(labelText: 'Location (suite, bar, pickup point)'),
+              decoration: const InputDecoration(labelText: 'Location (suite, club, bar, pickup point)'),
             ),
             const SizedBox(height: 12),
             TextField(

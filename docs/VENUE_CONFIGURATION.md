@@ -16,6 +16,16 @@ The map page is `web/three/suite_map.html`. It runs in an iframe on web and in a
 
 Migration `0012_service_suite_count.sql` adds a venue-level count and sets it to 26 if exactly one existing venue is named `Credit Union of Texas Event Center` or `CUTX Event Center`. If that venue has not been created yet, or if the name is ambiguous, set the count to 26 in Administration after identifying the right venue. Administrators can change the count later without changing other venues.
 
+### Premium clubs
+
+On October 16, 2026 the operator identified the two open ends of the premium level as premium clubs: one between suites 229 and 201, the other between suites 215 and 216. The supplied plan does not draw them, so their map outlines in `premium_level_layout.dart` fill the concourse between the arena floor's edge and the level's outer edge at each end. Like the suites, the map is proportional, not measured.
+
+Clubs are premium spaces stored with the suites in `venue_suites`, with `map_area` set to `club_a` or `club_b` to place them on the map. They can be added to an event, move through the same setup states, take staff placements and orders, and open the same panel when tapped on the map. Migration `0030_premium_clubs.sql` adds `map_area` and creates `Premium Club A` and `Premium Club B` for the initial venue (identified as in `0022`). The club names, capacities, and service zones were not supplied; the seeded names are placeholders. Administrators can add a club under Administration by choosing its position on the map. Clubs are not counted in the suite service count.
+
+### Arena floor as a service area
+
+The operator also identified the arena floor as a serviceable area on the map (October 16, 2026). It is a premium space like the suites and clubs, with `map_area` set to `arena_floor`, and uses the floor outline already on the map, drawn flat at ground level. It is tappable and colored by status when it is assigned to the event. Migration `0031_arena_floor_service_area.sql` creates it for the initial venue as `Main Arena Floor`, the name the operator gave the same space as a banquet area; the banquet area profile is separate and unchanged.
+
 ## Banquet areas
 
 The venue operator confirmed three banquet areas on October 14, 2026:

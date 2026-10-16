@@ -11,6 +11,7 @@ import '../../dispatch/domain/service_request.dart';
 import '../../operations/application/operations_providers.dart';
 import '../../planning/application/planning_providers.dart';
 import '../../planning/presentation/planning_widgets.dart';
+import '../../suites/domain/premium_level_layout.dart';
 import 'banquet_areas_section.dart';
 import 'people_section.dart';
 
@@ -32,7 +33,7 @@ class AdminScreen extends ConsumerWidget {
           ? FloatingActionButton.extended(
               onPressed: () => _addSuite(context, ref, session.venueId),
               icon: const Icon(Icons.add),
-              label: const Text('Add suite'),
+              label: const Text('Add space'),
             )
           : null,
       body: ListView(
@@ -134,9 +135,13 @@ class AdminScreen extends ConsumerWidget {
     WidgetRef ref,
     String venueId,
   ) async {
+    final existing = await ref.read(venueSuitesProvider(venueId).future);
+    if (!context.mounted) return;
     final draft = await showDialog<_SuiteDraft>(
       context: context,
-      builder: (_) => const _SuiteDialog(),
+      builder: (_) => _SuiteDialog(
+        placedClubs: {for (final s in existing) ?(s['map_area'] as String?)},
+      ),
     );
     if (draft == null || !context.mounted) return;
     await runWrite(context, () async {
@@ -148,9 +153,10 @@ class AdminScreen extends ConsumerWidget {
             location: draft.location,
             serviceZone: draft.zone,
             capacity: draft.capacity,
+            mapArea: draft.mapArea,
           );
       ref.invalidate(venueSuitesProvider(venueId));
-    }, success: 'Suite added.');
+    }, success: 'Added.');
   }
 }
 
@@ -355,6 +361,8 @@ class _SuiteList extends ConsumerWidget {
                       if ((s['service_zone'] as String?)?.isNotEmpty ?? false)
                         'Zone ${s['service_zone']}',
                       if (s['capacity'] != null) 'Capacity ${s['capacity']}',
+                      if (_clubLabel(s['map_area'] as String?) case final club?)
+                        '$club on the map',
                     ].join(' · '),
                   ),
                 ),
@@ -402,22 +410,33 @@ class _TemplateList extends ConsumerWidget {
   }
 }
 
+String? _clubLabel(String? mapArea) => mapArea == arenaFloorArea
+    ? 'Arena floor'
+    : premiumLevelClubs.where((c) => c.mapArea == mapArea).firstOrNull?.label;
+
 class _SuiteDraft {
   const _SuiteDraft({
     required this.name,
     required this.location,
     required this.zone,
     this.capacity,
+    this.mapArea,
   });
 
   final String name;
   final String location;
   final String zone;
   final int? capacity;
+
+  /// The club outline this space is drawn as; null for a suite.
+  final String? mapArea;
 }
 
 class _SuiteDialog extends StatefulWidget {
-  const _SuiteDialog();
+  const _SuiteDialog({required this.placedClubs});
+
+  /// Clubs already placed on the map, which cannot be placed twice.
+  final Set<String> placedClubs;
 
   @override
   State<_SuiteDialog> createState() => _SuiteDialogState();
@@ -428,6 +447,7 @@ class _SuiteDialogState extends State<_SuiteDialog> {
   final _location = TextEditingController();
   final _zone = TextEditingController();
   final _capacity = TextEditingController();
+  String? _mapArea;
   String? _error;
 
   @override
@@ -441,15 +461,42 @@ class _SuiteDialogState extends State<_SuiteDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Add suite'),
+      title: const Text('Add premium space'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            DropdownButtonFormField<String?>(
+              initialValue: _mapArea,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'On the map'),
+              items: [
+                const DropdownMenuItem(
+                  value: null,
+                  child: Text('Suite: matched by the number in its name'),
+                ),
+                for (final club in premiumLevelClubs)
+                  if (!widget.placedClubs.contains(club.mapArea))
+                    DropdownMenuItem(
+                      value: club.mapArea,
+                      child: Text(
+                        '${club.label}, ${club.place}',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                if (!widget.placedClubs.contains(arenaFloorArea))
+                  const DropdownMenuItem(
+                    value: arenaFloorArea,
+                    child: Text('Arena floor, the open center'),
+                  ),
+              ],
+              onChanged: (value) => setState(() => _mapArea = value),
+            ),
+            const SizedBox(height: 10),
             TextField(
               controller: _name,
               decoration: InputDecoration(
-                labelText: 'Suite name',
+                labelText: _mapArea == null ? 'Suite name' : 'Name',
                 errorText: _error,
               ),
             ),
@@ -482,7 +529,11 @@ class _SuiteDialogState extends State<_SuiteDialog> {
         FilledButton(
           onPressed: () {
             if (_name.text.trim().isEmpty) {
-              setState(() => _error = 'Name the suite.');
+              setState(
+                () => _error = _mapArea == null
+                    ? 'Name the suite.'
+                    : 'Name this space.',
+              );
               return;
             }
             final capText = _capacity.text.trim();
@@ -498,6 +549,7 @@ class _SuiteDialogState extends State<_SuiteDialog> {
                 location: _location.text.trim(),
                 zone: _zone.text.trim(),
                 capacity: capacity,
+                mapArea: _mapArea,
               ),
             );
           },

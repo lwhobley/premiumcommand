@@ -6,7 +6,8 @@
 //     --alias:three=./web/three/package/build/three.module.js --outfile=web/three/suite_map.js
 //
 // The page draws whatever the app sends; suite outlines and colors come from
-// lib/features/suites/domain/premium_level_layout.dart.
+// lib/features/suites/domain/premium_level_layout.dart. Tapping a suite, club, or the
+// arena floor posts its id back to the app.
 import * as THREE from 'three';
 import { OrbitControls } from '../../web/three/package/examples/jsm/controls/OrbitControls.js';
 
@@ -124,9 +125,28 @@ function render(payload) {
 
   // The arena floor is the open center of the building: flat at ground level, inside the
   // premium level's inner edge. The premium level wraps around it, raised above the floor.
+  // When the payload has a floor entry ({id, label, color, muted}) the floor is a space like
+  // the suites: colored by status and tappable. Without one it is drawn plain.
   const edge = payload.bowlEdge;
-  group.add(new THREE.Mesh(prism(edge, [], 0.2), floorMaterial));
-  const floorLabel = labelSprite('Arena floor', { size: 2.6, background: 'rgba(0,0,0,0)', color: '#f8f6f1' });
+  const floor = payload.floor;
+  let floorMesh;
+  if (floor) {
+    const selected = floor.id === payload.selected;
+    floorMesh = new THREE.Mesh(
+      prism(edge, [], 0.2),
+      new THREE.MeshStandardMaterial({
+        color: new THREE.Color(floor.muted ? 0x9e9a92 : floor.color),
+        roughness: 0.9,
+        emissive: new THREE.Color(selected ? 0x3a2c12 : 0x000000),
+      }),
+    );
+    floorMesh.userData.suiteId = floor.id;
+    suiteMeshes.push(floorMesh);
+  } else {
+    floorMesh = new THREE.Mesh(prism(edge, [], 0.2), floorMaterial);
+  }
+  group.add(floorMesh);
+  const floorLabel = labelSprite(floor?.label ?? 'Arena floor', { size: 2.6, background: 'rgba(0,0,0,0)', color: '#f8f6f1' });
   const [labelX, labelZ] = toXZ(centroid(edge));
   floorLabel.position.set(labelX, 0.8, labelZ);
   group.add(floorLabel);
