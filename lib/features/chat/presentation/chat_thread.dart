@@ -9,6 +9,7 @@ import '../../auth/application/session_controller.dart';
 import '../../planning/application/planning_providers.dart';
 import '../application/chat_providers.dart';
 import '../domain/chat.dart';
+import '../data/chat_repository.dart';
 
 /// Emoji offered in the message box. Plain text, so it works the same on every platform.
 const chatEmoji = [
@@ -38,6 +39,48 @@ class _ChatThreadViewState extends ConsumerState<ChatThreadView> {
   final _focus = FocusNode();
   bool _showEmoji = false;
   bool _sending = false;
+  bool _loadingOlder = false;
+  bool _hasOlder = true;
+  String? _historyError;
+  List<ChatMessage> _history = [];
+
+  List<ChatMessage> _merge(List<ChatMessage> incoming) {
+    final byId = {
+      for (final m in [..._history, ...incoming]) m.id: m,
+    };
+    return byId.values.toList()..sort((a, b) {
+      final time = a.createdAt.compareTo(b.createdAt);
+      return time == 0 ? a.id.compareTo(b.id) : time;
+    });
+  }
+
+  Future<void> _loadOlder(List<ChatMessage> current) async {
+    if (_loadingOlder || !_hasOlder || current.isEmpty) return;
+    final id = widget.conversationId;
+    setState(() {
+      _loadingOlder = true;
+      _historyError = null;
+    });
+    try {
+      final page = await ref
+          .read(chatRepositoryProvider)
+          .messages(id, before: current.first);
+      if (!mounted || widget.conversationId != id) return;
+      setState(() {
+        _history = _merge([...current, ...page]);
+        _hasOlder = page.length == ChatRepository.pageSize;
+      });
+    } catch (error) {
+      if (mounted && widget.conversationId == id) {
+        setState(() => _historyError = userMessageFor(error));
+      }
+    } finally {
+      if (mounted && widget.conversationId == id) {
+        setState(() => _loadingOlder = false);
+      }
+    }
+  }
+
   late final OpenChatController _open = ref.read(openChatProvider.notifier);
 
   @override
@@ -49,22 +92,31 @@ class _ChatThreadViewState extends ConsumerState<ChatThreadView> {
   @override
   void didUpdateWidget(covariant ChatThreadView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.conversationId != widget.conversationId) _markOpened();
+    if (oldWidget.conversationId != widget.conversationId) {
+      _history = [];
+      _hasOlder = true;
+      _loadingOlder = false;
+      _historyError = null;
+      _sending = false;
+      _input.clear();
+      _markOpened();
+    }
   }
 
   /// Opening a conversation reads it. Messages that arrive while it is open are read too.
   void _markOpened() {
-    _open.open(widget.conversationId);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      _open.open(widget.conversationId);
       ref
           .read(chatRepositoryProvider)
           .markRead(widget.conversationId)
-          .then(
-            (_) => ref.invalidate(
+          .then((_) {
+            if (!mounted) return;
+            ref.invalidate(
               chatListProvider(ref.read(sessionProvider)?.venueId ?? ''),
-            ),
-          )
+            );
+          })
           .catchError((_) {});
     });
   }
@@ -81,17 +133,22 @@ class _ChatThreadViewState extends ConsumerState<ChatThreadView> {
     final text = _input.text.trim();
     if (text.isEmpty || _sending) return;
     final venueId = ref.read(sessionProvider)?.venueId ?? '';
+    final id = widget.conversationId;
     setState(() => _sending = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
-      await ref.read(chatRepositoryProvider).send(widget.conversationId, text);
-      _input.clear();
+      await ref.read(chatRepositoryProvider).send(id, text);
+      if (!mounted || widget.conversationId != id) return;
+      if (_input.text.trim() == text) _input.clear();
       ref.invalidate(chatMessagesProvider(widget.conversationId));
       ref.invalidate(chatListProvider(venueId));
     } catch (error) {
+      if (!mounted || widget.conversationId != id) return;
       messenger.showSnackBar(SnackBar(content: Text(userMessageFor(error))));
     } finally {
-      if (mounted) setState(() => _sending = false);
+      if (mounted && widget.conversationId == id) {
+        setState(() => _sending = false);
+      }
     }
   }
 
@@ -121,6 +178,10 @@ class _ChatThreadViewState extends ConsumerState<ChatThreadView> {
         .value
         ?.where((c) => c.id == widget.conversationId)
         .firstOrNull;
+    ref.listen(chatMessagesProvider(widget.conversationId), (previous, next) {
+      if (previous?.hasValue == true) _history = _merge(previous!.value!);
+      if (next.hasValue) _history = _merge(next.value!);
+    });
     final messages = ref.watch(chatMessagesProvider(widget.conversationId));
     final participants =
         ref.watch(chatParticipantsProvider(widget.conversationId)).value ??
@@ -174,7 +235,8 @@ class _ChatThreadViewState extends ConsumerState<ChatThreadView> {
                   child: Text(userMessageFor(error)),
                 ),
               ),
-              data: (items) {
+              data: (latest) {
+                final items = _merge(latest);
                 if (items.isEmpty) {
                   return const Center(
                     child: Text(
@@ -189,8 +251,29 @@ class _ChatThreadViewState extends ConsumerState<ChatThreadView> {
                     horizontal: 12,
                     vertical: 10,
                   ),
-                  itemCount: items.length,
+                  itemCount: items.length + 1,
                   itemBuilder: (context, index) {
+                    if (index == items.length) {
+                      if (!_hasOlder) return const SizedBox.shrink();
+                      return Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          children: [
+                            if (_historyError != null) Text(_historyError!),
+                            TextButton(
+                              onPressed: _loadingOlder
+                                  ? null
+                                  : () => _loadOlder(items),
+                              child: Text(
+                                _loadingOlder
+                                    ? 'Loading earlier messages…'
+                                    : 'Load earlier messages',
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
                     // The list is shown newest at the bottom, so index 0 is the newest message.
                     final position = items.length - 1 - index;
                     final message = items[position];

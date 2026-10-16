@@ -21,13 +21,26 @@ class ChatRepository {
         .toList();
   }
 
-  Future<List<ChatMessage>> messages(String conversationId) async {
-    final rows = await _client
+  static const pageSize = 200;
+
+  Future<List<ChatMessage>> messages(
+    String conversationId, {
+    ChatMessage? before,
+  }) async {
+    var query = _client
         .from('chat_messages')
         .select()
-        .eq('conversation_id', conversationId)
+        .eq('conversation_id', conversationId);
+    if (before != null) {
+      final at = before.createdAt.toUtc().toIso8601String();
+      query = query.or(
+        'created_at.lt.$at,and(created_at.eq.$at,id.lt.${before.id})',
+      );
+    }
+    final rows = await query
         .order('created_at', ascending: false)
-        .limit(200);
+        .order('id', ascending: false)
+        .limit(pageSize);
     // Newest first from the server, shown oldest first in the thread.
     return rows
         .cast<Map<String, dynamic>>()

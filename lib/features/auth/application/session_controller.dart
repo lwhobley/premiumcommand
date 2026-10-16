@@ -8,6 +8,7 @@ import '../../../core/offline/outbox.dart';
 import '../../../core/permissions/app_permission.dart';
 import '../../../core/push/push_service.dart';
 import '../data/auth_repository.dart';
+import '../data/session_timing_store.dart';
 import '../domain/app_session.dart';
 
 final sessionCacheProvider = Provider<SessionCache>((ref) => SessionCache());
@@ -21,6 +22,11 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
   }
   return DemoAuthRepository();
 });
+
+final sessionTimingStoreProvider = Provider((ref) => SessionTimingStore());
+final sessionClockProvider = Provider<DateTime Function()>(
+  (ref) => DateTime.now,
+);
 
 final pushServiceProvider = Provider<PushService>((ref) => PushService());
 
@@ -66,15 +72,44 @@ class SessionController extends Notifier<AppSession?> {
     return notice;
   }
 
-  /// Called on every pointer press anywhere in the app. Resets the idle timer.
-  void touch() {
-    if (state != null) _lastActivity = DateTime.now();
+  DateTime _now() => ref.read(sessionClockProvider)();
+  SessionTimingStore get _timing => ref.read(sessionTimingStoreProvider);
+
+  bool get _expired {
+    final now = _now();
+    return _signedInAt == null ||
+        _lastActivity == null ||
+        now.isBefore(_signedInAt!) ||
+        now.isBefore(_lastActivity!) ||
+        now.difference(_signedInAt!) >= totalLimit ||
+        now.difference(_lastActivity!) >= idleLimit;
   }
 
-  void _beginTimedSession() {
-    final now = DateTime.now();
+  /// Called on every pointer press anywhere in the app. Resets the idle timer.
+  void touch() {
+    final session = state;
+    if (session == null) return;
+    if (_expired) {
+      _enforceTimeout();
+      return;
+    }
+    _lastActivity = _now();
+    unawaited(
+      _timing
+          .write(session.userId, _signedInAt!, _lastActivity!)
+          .catchError((_) {}),
+    );
+  }
+
+  Future<void> _beginTimedSession(String userId) async {
+    final now = _now();
     _signedInAt = now;
     _lastActivity = now;
+    await _timing.write(userId, now, now);
+    _startTimer();
+  }
+
+  void _startTimer() {
     _timeoutTimer?.cancel();
     _timeoutTimer = Timer.periodic(
       const Duration(seconds: 30),
@@ -89,10 +124,9 @@ class SessionController extends Notifier<AppSession?> {
 
   void _enforceTimeout() {
     if (state == null) return;
-    final now = DateTime.now();
+    final now = _now();
     final idle = now.difference(_lastActivity ?? now) >= idleLimit;
-    final expired = now.difference(_signedInAt ?? now) >= totalLimit;
-    if (!idle && !expired) return;
+    if (!_expired) return;
     _endedNotice = idle
         ? 'You were signed out after 30 minutes without activity. Sign in again.'
         : 'Your session reached its 12-hour limit. Sign in again.';
@@ -110,8 +144,18 @@ class SessionController extends Notifier<AppSession?> {
   /// from opening: the user lands on the sign-in screen instead.
   Future<void> restore() async {
     try {
-      state = await _auth.restoreSession();
-      if (state != null) _beginTimedSession();
+      final restored = await _auth.restoreSession();
+      if (restored == null) return;
+      final saved = await _timing.read();
+      _signedInAt = DateTime.tryParse(saved?['started'] as String? ?? '');
+      _lastActivity = DateTime.tryParse(saved?['activity'] as String? ?? '');
+      if (saved?['user_id'] != restored.userId || _expired) {
+        _endedNotice = 'Your session expired. Sign in again.';
+        await signOut();
+        return;
+      }
+      state = restored;
+      _startTimer();
       _startPush();
     } catch (_) {
       state = null;
@@ -122,14 +166,19 @@ class SessionController extends Notifier<AppSession?> {
     required String email,
     required String password,
   }) async {
-    state = await _auth.signInWithPassword(email: email, password: password);
-    _beginTimedSession();
+    final session = await _auth.signInWithPassword(
+      email: email,
+      password: password,
+    );
+    await _beginTimedSession(session.userId);
+    state = session;
     _startPush();
   }
 
   Future<void> signInWithPin({required String pin}) async {
-    state = await _auth.signInWithPin(pin: pin);
-    _beginTimedSession();
+    final session = await _auth.signInWithPin(pin: pin);
+    await _beginTimedSession(session.userId);
+    state = session;
     _startPush();
   }
 
@@ -137,11 +186,14 @@ class SessionController extends Notifier<AppSession?> {
   void signInAsDemo(AppRole role) {
     final repo = DemoAuthRepository(demoRole: role);
     state = repo.demoSession(role);
+    _signedInAt = _lastActivity = _now();
   }
 
   /// Always ends the local session, even when the server cannot be reached.
   Future<void> signOut() async {
     _stopTimeout();
+    state = null;
+    await _timing.clear().catchError((_) {});
     if (AppConfig.hasSupabase) {
       await ref.read(pushServiceProvider).stop(Supabase.instance.client);
     }
