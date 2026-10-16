@@ -81,7 +81,7 @@ Leave it null to disable pushes. Do not copy a production URL into staging or lo
 
 ## 6. Meeting notes assistant
 
-Administrators (anyone with `manage_configuration`) can write meeting notes and ask Claude which event they are about and what should change. The `meeting-notes-ai` Edge Function calls the Anthropic API with the `claude-opus-5-5` model. It reads and writes as the signed-in administrator, so row level security applies, and it only stores a proposal: nothing on the event changes until an administrator applies it.
+Administrators (anyone with `manage_configuration`) can write meeting notes and ask Claude which event they are about and what should change. The `meeting-notes-ai` Edge Function calls the Anthropic API with the `claude-haiku-5-5` model (Claude Haiku 5.5). It reads and writes as the signed-in administrator, so row level security applies, and it only stores a proposal: nothing on the event changes until an administrator applies it.
 
 Deploy the function and give it an Anthropic API key from the Anthropic Console **(manual)**:
 
@@ -92,7 +92,7 @@ supabase secrets set ANTHROPIC_API_KEY=<key>
 
 The key exists only as a function secret. Never put it in the app or this repository. Without it, the app still records notes and an administrator can link them to an event by hand; the assistant button explains that it is not set up.
 
-The model and effort level are constants at the top of `supabase/functions/meeting-notes-ai/index.ts`. Requests use the API's server-side refusal fallback (`fallbacks: "default"`), so a safety decline is retried on Anthropic's recommended fallback model.
+The model and effort levels are constants at the top of `supabase/functions/meeting-notes-ai/index.ts`. Claude Haiku 5.5 has no server-side refusal fallback: if its safety checks decline a note, the assistant says so and the administrator applies the changes by hand.
 
 ## 7. Before go-live
 

@@ -28,9 +28,11 @@ import {
   readOutput,
 } from "./analysis.ts";
 
-const MODEL = "claude-opus-5-5";
-// Medium is this model's default. Raise it if matching or proposals miss details.
-const EFFORT = "medium";
+const MODEL = "claude-haiku-5-5";
+// Matching is a lookup over a list, so the model's default (medium) is enough. Proposals must
+// follow strict rules (only what the notes support, no duplicates), so they get high.
+const MATCH_EFFORT = "medium";
+const PROPOSAL_EFFORT = "high";
 // Events offered for matching: recent past through the coming year and a half.
 const PAST_DAYS = 90;
 const FUTURE_DAYS = 540;
@@ -135,7 +137,13 @@ async function analyze(user: SupabaseClient, noteId: string, chosenEventId: stri
     };
   } else {
     const events = await listCandidateEvents(user, note.venue_id, now);
-    const raw = await ask(anthropic, MATCH_SYSTEM, matchPrompt(input, events, timeZone, now), MatchSchema);
+    const raw = await ask(
+      anthropic,
+      MATCH_SYSTEM,
+      matchPrompt(input, events, timeZone, now),
+      MatchSchema,
+      MATCH_EFFORT,
+    );
     match = { ...checkMatch(raw, events), chosen_by: "assistant" };
   }
 
@@ -161,6 +169,7 @@ async function analyze(user: SupabaseClient, noteId: string, chosenEventId: stri
       PROPOSAL_SYSTEM,
       proposalPrompt(input, detail, timeZone, now),
       ProposalSchema,
+      PROPOSAL_EFFORT,
     );
     result.summary = proposal.summary.trim();
     result.key_details = proposal.key_details.map((d) => d.trim()).filter(Boolean).slice(0, 20);
@@ -186,17 +195,17 @@ async function ask<T extends z.ZodType>(
   system: string,
   prompt: string,
   schema: T,
+  effort: "medium" | "high",
 ): Promise<z.infer<T>> {
-  const response = await anthropic.beta.messages.create({
+  // Thinking is on by default for this model, so the answer is read from the text blocks.
+  const response = await anthropic.messages.create({
     model: MODEL,
     max_tokens: 16000,
     system,
     messages: [{ role: "user", content: prompt }],
-    output_config: { effort: EFFORT, format: { type: "json_schema", schema: outputSchema(schema) } },
-    // If a safety classifier declines, the API retries on its recommended fallback model.
-    betas: ["server-side-fallback-2026-07-01"],
-    fallbacks: "default",
+    output_config: { effort, format: { type: "json_schema", schema: outputSchema(schema) } },
   });
+  // This model has no server-side fallback, so a safety decline ends here.
   if (response.stop_reason === "refusal") {
     throw new HttpError(422, "The assistant declined to read these notes. Apply the changes by hand.");
   }
@@ -204,7 +213,7 @@ async function ask<T extends z.ZodType>(
     throw new HttpError(422, "These notes are too long for the assistant to finish. Shorten them and try again.");
   }
   const text = response.content
-    .filter((block): block is Anthropic.Beta.BetaTextBlock => block.type === "text")
+    .filter((block): block is Anthropic.TextBlock => block.type === "text")
     .map((block) => block.text)
     .join("");
   const output = readOutput(text, schema);
