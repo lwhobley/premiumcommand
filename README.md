@@ -25,6 +25,7 @@ The initial venue has three confirmed banquet areas: Main Arena Floor, Premium L
 | Communications (announcements to rostered staff, notifications, incident reports) | Built |
 | Event Closeout & Reports (recap, manager and director sign-off, PDF, trends) | Built |
 | Administration (suites, checklist library) | Built (partial: see below) |
+| Meeting Notes (administrators; Claude finds the event and proposes changes, applied after review) | Built |
 | Offline queue for dispatch and task updates, with conflict review | Built |
 | Offline read cache for dispatch | Built |
 | Security hardening for tenant links and workflow rules | Prepared in migrations `0015`–`0017`; database validation pending |
@@ -71,6 +72,8 @@ The database rules are covered by rolled-back SQL checks run against the live pr
 - `lib/features/closeout` — recap, sign-off, PDF
 - `lib/features/sync` — offline queue, sync banner
 - `lib/features/admin` — administration
+- `lib/features/meeting_notes` — meeting notes, assistant review, and the event's notes card
+- `supabase/functions/meeting-notes-ai` — the meeting notes assistant (Anthropic API)
 - `supabase/migrations` — schema, RLS, state-machine functions, audit, performance fixes
 - `docs` — deployment guide and security review
 
@@ -82,3 +85,4 @@ The database rules are covered by rolled-back SQL checks run against the live pr
 - BEO revisions are never edited in place. Approval supersedes the old revision and flags affected tasks.
 - Offline writes carry a client id and the version they were made against. A conflict is kept for review, never applied over someone else's change.
 - Demo sign-in is hidden whenever a backend is configured.
+- The meeting notes assistant only proposes. An administrator reviews each change, and `apply_meeting_note` checks and applies the accepted ones in one transaction.
