@@ -28,6 +28,8 @@ Migrations live in `supabase/migrations/` and must be applied in order:
 20. `0029_meeting_notes.sql`: meeting notes and the `apply_meeting_note` function
 21. `0030_premium_clubs.sql`: premium clubs at the two ends of the premium level, placed on the map
 22. `0031_arena_floor_service_area.sql`: the arena floor as a serviceable, tappable space on the map
+23. `0032_space_map_positions.sql`: pins every suite to its map position so spaces can be renamed and renumbered
+24. `0033_document_imports.sql`: private `documents` bucket for BEO and menu files read by the assistant
 
 Migration `0011` rejects early floor-plan rows whose `venue_id` differs from their venue space. Migration `0015` rejects existing rows with cross-venue references. Migration `0016` can reject closeouts already signed by the same person in both roles. Investigate and correct these rows before retrying. After applying, run every rolled-back script in `supabase/tests/` against that database. A local PostgreSQL server is required for these checks; Flutter tests do not execute SQL migrations.
 
@@ -94,7 +96,13 @@ supabase secrets set ANTHROPIC_API_KEY=<key>
 
 The key exists only as a function secret. Never put it in the app or this repository. Without it, the app still records notes and an administrator can link them to an event by hand; the assistant button explains that it is not set up.
 
-The model and effort levels are constants at the top of `supabase/functions/meeting-notes-ai/index.ts`. Claude Haiku 5.5 has no server-side refusal fallback: if its safety checks decline a note, the assistant says so and the administrator applies the changes by hand.
+The same key powers the BEO and menu import (`document-ai`). Deploy it too:
+
+```bash
+supabase functions deploy document-ai
+```
+
+The model and effort levels are constants at the top of `supabase/functions/meeting-notes-ai/index.ts` and `supabase/functions/document-ai/index.ts`. Claude Haiku 5.5 has no server-side refusal fallback: if its safety checks decline a note, the assistant says so and the administrator applies the changes by hand.
 
 ## 7. Before go-live
 

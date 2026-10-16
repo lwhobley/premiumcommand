@@ -22,6 +22,10 @@ On October 16, 2026 the operator identified the two open ends of the premium lev
 
 Clubs are premium spaces stored with the suites in `venue_suites`, with `map_area` set to `club_a` or `club_b` to place them on the map. They can be added to an event, move through the same setup states, take staff placements and orders, and open the same panel when tapped on the map. Migration `0030_premium_clubs.sql` adds `map_area` and creates `Premium Club A` and `Premium Club B` for the initial venue (identified as in `0022`). The club names, capacities, and service zones were not supplied; the seeded names are placeholders. Administrators can add a club under Administration by choosing its position on the map. Clubs are not counted in the suite service count.
 
+### Renaming spaces
+
+Administrators can rename or renumber any premium space under Administration (tap the space). Every space is pinned to a map position in `venue_suites.map_area`: a plan suite number (201–229), a club, or the arena floor. Migration `0032_space_map_positions.sql` pinned each suite the map already placed, so renaming "Suite 204" to "Suite 304" keeps it in the same place, and the map label shows the new name. The same dialog can move a space to any free position.
+
 ### Arena floor as a service area
 
 The operator also identified the arena floor as a serviceable area on the map (October 16, 2026). It is a premium space like the suites and clubs, with `map_area` set to `arena_floor`, and uses the floor outline already on the map, drawn flat at ground level. It is tappable and colored by status when it is assigned to the event. Migration `0031_arena_floor_service_area.sql` creates it for the initial venue as `Main Arena Floor`, the name the operator gave the same space as a banquet area; the banquet area profile is separate and unchanged.

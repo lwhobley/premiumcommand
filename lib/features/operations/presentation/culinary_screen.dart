@@ -11,6 +11,8 @@ import '../../auth/domain/app_session.dart';
 import '../../events/domain/readiness.dart';
 import '../../planning/application/planning_providers.dart';
 import '../../planning/presentation/planning_widgets.dart';
+import '../../document_import/domain/document_import.dart';
+import '../../document_import/presentation/document_import_screen.dart';
 import '../application/operations_providers.dart';
 import '../domain/operations.dart';
 
@@ -357,10 +359,29 @@ class _MenuTab extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(child: Text('$error')),
         data: (items) {
-          if (items.isEmpty) return const Center(child: Text('No menu items yet.'));
+          // The document assistant is for administrators only.
+          final import = canEdit && permissions.contains(AppPermission.manageConfiguration)
+              ? Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () => _import(context, ref),
+                    icon: const Icon(Icons.auto_awesome),
+                    label: const Text('Import menu with AI'),
+                  ),
+                )
+              : null;
+          if (items.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [const Text('No menu items yet.'), ?import],
+              ),
+            );
+          }
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
             children: [
+              ?import,
               for (final m in items)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -376,6 +397,28 @@ class _MenuTab extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  /// Reads a menu document with the assistant and adds the dishes the administrator keeps.
+  Future<void> _import(BuildContext context, WidgetRef ref) async {
+    final outcome = await showDocumentImport(context, kind: ImportKind.menu, eventId: eventId);
+    final session = ref.read(sessionProvider);
+    if (outcome == null || outcome.menuItems.isEmpty || session == null || !context.mounted) return;
+    final count = outcome.menuItems.length;
+    await runWrite(context, () async {
+      final operations = ref.read(operationsRepositoryProvider);
+      for (final item in outcome.menuItems) {
+        await operations.addMenuItem(
+          venueId: session.venueId,
+          eventId: eventId,
+          name: item.name,
+          course: item.course,
+          allergens: item.allergens,
+          dietaryTags: item.dietaryTags,
+        );
+      }
+      ref.invalidate(menuProvider(eventId));
+    }, success: '$count menu ${count == 1 ? 'item' : 'items'} added.');
   }
 }
 
