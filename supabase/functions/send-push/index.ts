@@ -166,6 +166,14 @@ Deno.serve(async (req) => {
     } else if (response.status === 404) {
       // The device is gone or the token is invalid. Stop pushing to it.
       await db.from("device_tokens").delete().eq("token", token);
+    } else {
+      // Firebase explains a refusal in the body (for example a sender ID mismatch, or a
+      // missing APNs key for iOS). It names the error, never the device token.
+      console.error(
+        "FCM send failed",
+        response.status,
+        (await response.text()).slice(0, 500),
+      );
     }
   }
   return new Response(JSON.stringify({ sent }), { status: 200 });
