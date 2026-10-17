@@ -15,7 +15,8 @@ enum AppPermission {
   manageBanquets('manage_banquets'),
   closeOutEvents('close_out_events'),
   viewReports('view_reports'),
-  manageConfiguration('manage_configuration');
+  manageConfiguration('manage_configuration'),
+  manageSales('manage_sales');
 
   const AppPermission(this.code);
 
@@ -50,6 +51,7 @@ enum AppRole {
 const Map<AppRole, Set<AppPermission>> defaultRolePermissions = {
   AppRole.director: {...AppPermission.values},
   AppRole.premiumManager: {
+    AppPermission.manageSales,
     AppPermission.viewOperations,
     AppPermission.viewDeployment,
     AppPermission.manageEvents,

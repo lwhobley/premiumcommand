@@ -11,6 +11,7 @@ import '../features/operations/presentation/inspections_screen.dart';
 import '../features/dispatch/presentation/dispatch_screen.dart';
 import '../features/staffing/presentation/staff_screen.dart';
 import '../features/suites/presentation/premium_spaces_screen.dart';
+import '../features/sales/presentation/sales_screen.dart';
 import '../features/dispatch/presentation/my_shift_screen.dart';
 import '../features/events/presentation/event_calendar_screen.dart';
 import '../features/events/presentation/event_list_screen.dart';
@@ -56,6 +57,13 @@ enum AppSection {
     icon: Icons.meeting_room_outlined,
     permission: AppPermission.viewOperations,
     phase: 2,
+  ),
+  sales(
+    path: '/sales',
+    label: 'Sales',
+    icon: Icons.sell_outlined,
+    permission: AppPermission.viewOperations,
+    phase: 4,
   ),
   banquetsCulinary(
     path: '/culinary',
@@ -172,6 +180,7 @@ enum AppSection {
       AppSection.myShift => const MyShiftScreen(),
       AppSection.beoManagement => const BeoScreen(),
       AppSection.premiumSpaces => const PremiumSpacesScreen(),
+      AppSection.sales => const SalesScreen(),
       AppSection.staffDeployment => const StaffScreen(),
       AppSection.banquetsCulinary => const CulinaryScreen(),
       AppSection.inspections => const InspectionsScreen(),
