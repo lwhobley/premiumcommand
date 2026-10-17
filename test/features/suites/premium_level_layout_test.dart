@@ -102,7 +102,7 @@ void main() {
 
     test('two clubs, both on the level', () {
       expect(premiumLevelClubs.map((c) => c.mapArea), ['club_a', 'club_b']);
-      expect(premiumLevelAreaCount, 32);
+      expect(premiumLevelAreaCount, 33);
       final (left, top) = premiumLevelFootprint.first;
       final (right, bottom) = premiumLevelFootprint[2];
       for (final club in premiumLevelClubs) {
@@ -154,10 +154,51 @@ void main() {
         expect(planAreaId('Suite 204', 'unknown_area'), isNull);
         expect(planAreaId('Main Arena Floor', arenaFloorArea), arenaFloorArea);
         expect(isClubArea(arenaFloorArea), isFalse);
+        expect(planAreaId('Concourse', concourseArea), concourseArea);
+        expect(isClubArea(concourseArea), isFalse);
         expect(isClubArea('club_a'), isTrue);
         expect(isClubArea('204'), isFalse);
       },
     );
+  });
+
+  group('seating sections', () {
+    test('the lower bowl rings the arena floor, inside its edge', () {
+      expect(lowerBowlSections, hasLength(21));
+      for (final section in lowerBowlSections) {
+        for (final (x, y) in section.points) {
+          // Nudged a hair toward the center, so a point on the edge counts as inside.
+          final p = (x + (610.5 - x) * 0.001, y + (415.2 - y) * 0.001);
+          expect(
+            _contains(premiumLevelBowlEdge, p),
+            isTrue,
+            reason: '${section.name} $p',
+          );
+        }
+      }
+      // The middle of the floor stays open.
+      for (final section in lowerBowlSections) {
+        expect(_contains(section.points, (610.5, 415.2)), isFalse);
+      }
+    });
+
+    test('the West Club sections cover the West Club', () {
+      final westClub = premiumLevelClubs.firstWhere(
+        (c) => c.mapArea == 'club_a',
+      );
+      expect(westClub.label, 'West Club');
+      expect(
+        premiumLevelClubs.firstWhere((c) => c.mapArea == 'club_b').label,
+        'Loge Club',
+      );
+      for (final probe in <PlanPoint>[(180, 415), (215, 270), (215, 560)]) {
+        expect(
+          westClubSections.where((s) => _contains(s.points, probe)),
+          hasLength(1),
+          reason: '$probe',
+        );
+      }
+    });
   });
 
   group('renaming spaces', () {

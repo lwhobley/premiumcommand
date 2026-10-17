@@ -6,14 +6,15 @@
 //     --alias:three=./web/three/package/build/three.module.js --outfile=web/three/suite_map.js
 //
 // The page draws whatever the app sends; suite outlines and colors come from
-// lib/features/suites/domain/premium_level_layout.dart. Tapping a suite, club, or the
-// arena floor posts its id back to the app.
+// lib/features/suites/domain/premium_level_layout.dart. Tapping a suite, club, the
+// arena floor, or the concourse posts its id back to the app.
 import * as THREE from 'three';
 import { OrbitControls } from '../../web/three/package/examples/jsm/controls/OrbitControls.js';
 
 const SCALE = 0.1; // plan points to scene units
-const LEVEL = 6; // height of the premium level above the arena floor
+const LEVEL = 10; // height of the premium level above the arena floor, clear of the concourse beneath
 const SUITE_HEIGHT = 3;
+const BOWL_HEIGHT = 1.2; // lower-bowl seating blocks, standing on the arena floor
 
 const container = document.getElementById('app');
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -41,10 +42,12 @@ scene.add(sun);
 
 const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x9e9a92, roughness: 0.9 });
 const levelMaterial = new THREE.MeshStandardMaterial({ color: 0xe4ded2, roughness: 0.95 });
+const bowlMaterial = new THREE.MeshStandardMaterial({ color: 0xcdc6b8, roughness: 0.9 });
 
 let center = [610, 415];
 let group = null;
 let suiteMeshes = [];
+let sectionMeshes = []; // seating sections and the level slab: they stop a tap but never select anything
 let hovered = null;
 
 const toXZ = ([x, y]) => [(x - center[0]) * SCALE, (y - center[1]) * SCALE];
@@ -106,7 +109,7 @@ function dispose(object) {
     node.geometry?.dispose();
     const materials = Array.isArray(node.material) ? node.material : [node.material];
     for (const m of materials) {
-      if (!m || m === floorMaterial || m === levelMaterial) continue;
+      if (!m || m === floorMaterial || m === levelMaterial || m === bowlMaterial) continue;
       m.map?.dispose();
       m.dispose();
     }
@@ -120,6 +123,7 @@ function render(payload) {
   }
   group = new THREE.Group();
   suiteMeshes = [];
+  sectionMeshes = [];
   hovered = null;
   center = payload.center;
 
@@ -151,9 +155,35 @@ function render(payload) {
   floorLabel.position.set(labelX, 0.8, labelZ);
   group.add(floorLabel);
 
+  // The concourse wraps around the lower level behind the bowl, at ground level under the
+  // premium level: seen through the open gap below the level. A space like the floor
+  // when the payload has a concourse entry ({id, label, color, muted}).
+  const concourse = payload.concourse;
+  if (concourse) {
+    const selected = concourse.id === payload.selected;
+    const mesh = new THREE.Mesh(
+      prism(payload.footprint, [edge], 0.2),
+      new THREE.MeshStandardMaterial({
+        color: new THREE.Color(concourse.muted ? 0xb9b2a5 : concourse.color),
+        roughness: 0.9,
+        emissive: new THREE.Color(selected ? 0x3a2c12 : 0x000000),
+      }),
+    );
+    mesh.userData.suiteId = concourse.id;
+    suiteMeshes.push(mesh);
+    group.add(mesh);
+    // Captioned just outside the building's front wall, where the label covers nothing.
+    const front = Math.max(...payload.footprint.map((p) => p[1]));
+    const [x, z] = toXZ([center[0], front + 14]);
+    const label = labelSprite(concourse.label, selected ? { size: 2.2, background: '#8c6a2f', color: '#ffffff' } : { size: 2.2 });
+    label.position.set(x, 0.8, z);
+    group.add(label);
+  }
+
   const level = new THREE.Mesh(prism(payload.footprint, [edge], 0.6), levelMaterial);
   level.position.y = LEVEL - 0.6;
   group.add(level);
+  sectionMeshes.push(level); // a tap on the level's floor must not reach the concourse below
 
   for (const suite of payload.suites) {
     const geometry = prism(suite.points, [], SUITE_HEIGHT);
@@ -179,7 +209,46 @@ function render(payload) {
     const [cx, cz] = toXZ(centroid(suite.points));
     const label = labelSprite(suite.label, selected ? { background: '#8c6a2f', color: '#ffffff' } : {});
     label.position.set(cx, LEVEL + SUITE_HEIGHT + 1.8 + (selected ? 0.8 : 0), cz);
+    if (payload.sections?.some((s) => s.space === suite.id)) {
+      // Its sections carry their own labels; set the name just outside the level so it covers none.
+      const length = Math.hypot(cx, cz) || 1;
+      const [dx, dz] = [cx / length, cz / length];
+      const reach = Math.max(...suite.points.map((p) => { const [x, z] = toXZ(p); return x * dx + z * dz; }));
+      const out = reach + label.scale.x / 2 + 1;
+      label.position.x = dx * out;
+      label.position.z = dz * out;
+    }
     group.add(label);
+  }
+
+  // Seating sections from the venue's chart. Lower-bowl sections are low blocks on the
+  // floor's edge; West Club sections ({kind: 'club', space}) are outlined on top of their club.
+  for (const section of payload.sections ?? []) {
+    const [cx, cz] = toXZ(centroid(section.points));
+    const label = labelSprite(section.id, { size: 1.4, background: 'rgba(255,255,255,0.8)' });
+    if (section.kind === 'bowl') {
+      const geometry = prism(section.points, [], BOWL_HEIGHT);
+      const mesh = new THREE.Mesh(geometry, bowlMaterial);
+      mesh.position.y = 0.2;
+      mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geometry), new THREE.LineBasicMaterial({ color: 0x8a8377 })));
+      group.add(mesh);
+      sectionMeshes.push(mesh);
+      label.position.set(cx, 0.2 + BOWL_HEIGHT + 0.9, cz);
+      group.add(label);
+    } else {
+      const club = suiteMeshes.find((m) => m.userData.suiteId === section.space);
+      if (!club) continue;
+      const outline = new THREE.LineLoop(
+        new THREE.BufferGeometry().setFromPoints(section.points.map((p) => {
+          const [x, z] = toXZ(p);
+          return new THREE.Vector3(x, SUITE_HEIGHT + 0.03, z);
+        })),
+        new THREE.LineBasicMaterial({ color: 0x2a2a2a }),
+      );
+      club.add(outline); // children of the club, so they rise with it when it is selected
+      label.position.set(cx, SUITE_HEIGHT + 0.8, cz);
+      club.add(label);
+    }
   }
 
   scene.add(group);
@@ -195,7 +264,8 @@ function pick(event) {
   pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
   pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(pointer, camera);
-  return raycaster.intersectObjects(suiteMeshes, false)[0]?.object ?? null;
+  const hit = raycaster.intersectObjects([...suiteMeshes, ...sectionMeshes], false)[0]?.object;
+  return hit?.userData.suiteId === undefined ? null : hit;
 }
 
 let down = null;

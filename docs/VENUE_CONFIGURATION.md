@@ -20,7 +20,11 @@ Migration `0012_service_suite_count.sql` adds a venue-level count and sets it to
 
 On October 16, 2026 the operator identified the two open ends of the premium level as premium clubs: one between suites 229 and 201, the other between suites 215 and 216. The supplied plan does not draw them, so their map outlines in `premium_level_layout.dart` fill the concourse between the arena floor's edge and the level's outer edge at each end. Like the suites, the map is proportional, not measured.
 
-Clubs are premium spaces stored with the suites in `venue_suites`, with `map_area` set to `club_a` or `club_b` to place them on the map. They can be added to an event, move through the same setup states, take staff placements and orders, and open the same panel when tapped on the map. Migration `0030_premium_clubs.sql` adds `map_area` and creates `Premium Club A` and `Premium Club B` for the initial venue (identified as in `0022`). The club names, capacities, and service zones were not supplied; the seeded names are placeholders. Administrators can add a club under Administration by choosing its position on the map. Clubs are not counted in the suite service count.
+Clubs are premium spaces stored with the suites in `venue_suites`, with `map_area` set to `club_a` or `club_b` to place them on the map. They can be added to an event, move through the same setup states, take staff placements and orders, and open the same panel when tapped on the map. Migration `0030_premium_clubs.sql` adds `map_area` and creates `Premium Club A` and `Premium Club B` for the initial venue (identified as in `0022`). Migration `0035_club_names.sql` renames them `West Club` and `Loge Club`, from the venue's seating chart, unless they were already renamed. Club capacities and service zones were not supplied. Administrators can add a club under Administration by choosing its position on the map. Clubs are not counted in the suite service count.
+
+### Seating sections
+
+The venue's seating chart (supplied October 16, 2026, a concert configuration) adds the lower bowl, sections 100–120, and the West Club's sections, W240–W244. The 3D map draws them for orientation only: they cannot be tapped or ordered for. The lower-bowl outlines were traced from the chart and fitted to the plan using the suites both show; the West Club sections are five equal bands across the club, since the chart draws them as thin strips. Suite labels read like the chart (S202). The chart's floor sections are for one event and are not drawn.
 
 ### Renaming spaces
 
@@ -29,6 +33,10 @@ Administrators can rename or renumber any premium space under Administration (ta
 ### Arena floor as a service area
 
 The operator also identified the arena floor as a serviceable area on the map (October 16, 2026). It is a premium space like the suites and clubs, with `map_area` set to `arena_floor`, and uses the floor outline already on the map, drawn flat at ground level. It is tappable and colored by status when it is assigned to the event. Migration `0031_arena_floor_service_area.sql` creates it for the initial venue as `Main Arena Floor`, the name the operator gave the same space as a banquet area; the banquet area profile is separate and unchanged.
+
+### Concourse as a service area
+
+The operator identified the concourse, which wraps around the whole lower level beneath the bowl, as a serviceable area (October 17, 2026). It is a premium space like the arena floor, with `map_area` set to `concourse`. The map draws it at ground level between the arena floor's edge and the building's outer wall, under the premium level, which is raised to leave an open gap; turn the view toward the side to see it. A tap on the premium level's floor does not reach the concourse below. Migration `0036_concourse_service_area.sql` creates it for the initial venue as `Concourse`.
 
 ## Banquet areas
 

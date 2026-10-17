@@ -86,7 +86,7 @@ void main() {
       final suites = (scene['suites']! as List).cast<Map<String, Object?>>();
       expect(suites, hasLength(31));
       final clubB = suites.firstWhere((s) => s['id'] == 'club_b');
-      expect(clubB['label'], 'Club B');
+      expect(clubB['label'], 'Loge Club');
       expect(clubB['muted'], isFalse);
       expect(suites.firstWhere((s) => s['id'] == 'club_a')['muted'], isTrue);
       final renamed =
@@ -99,12 +99,12 @@ void main() {
                   )['suites']!
                   as List)
               .cast<Map<String, Object?>>();
-      expect(renamed.firstWhere((s) => s['id'] == '204')['label'], '304');
+      expect(renamed.firstWhere((s) => s['id'] == '204')['label'], 'S304');
       expect(
         renamed.firstWhere((s) => s['id'] == 'club_a')['label'],
         'Owners Club',
       );
-      expect(renamed.firstWhere((s) => s['id'] == '205')['label'], '205');
+      expect(renamed.firstWhere((s) => s['id'] == '205')['label'], 'S205');
       final floor = scene['floor']! as Map<String, Object?>;
       expect(floor['id'], 'arena_floor');
       expect(floor['muted'], isTrue);
@@ -115,6 +115,17 @@ void main() {
               as Map<String, Object?>;
       expect(assigned['muted'], isFalse);
       expect(assigned['color'], '#2e7d5b');
+      final concourse = scene['concourse']! as Map<String, Object?>;
+      expect(concourse['id'], 'concourse');
+      expect(concourse['label'], 'Concourse');
+      expect(concourse['muted'], isTrue);
+      expect(
+        (buildSuiteMapScene({
+              'concourse': SuiteMapStatus.confirmed,
+            })['concourse']!
+            as Map<String, Object?>)['muted'],
+        isFalse,
+      );
       expect(scene['selected'], '201');
       final first = suites.firstWhere((s) => s['id'] == '201');
       expect(first['muted'], isFalse);
@@ -122,4 +133,15 @@ void main() {
       expect(suites.firstWhere((s) => s['id'] == '229')['muted'], isTrue);
     },
   );
+
+  test('scene payload draws the seating chart sections on the map', () {
+    final sections = (buildSuiteMapScene(const {})['sections']! as List)
+        .cast<Map<String, Object?>>();
+    expect(sections.where((s) => s['kind'] == 'bowl').map((s) => s['id']), [
+      for (var n = 100; n <= 120; n++) '$n',
+    ]);
+    final club = sections.where((s) => s['kind'] == 'club').toList();
+    expect(club.map((s) => s['id']), ['W244', 'W243', 'W242', 'W241', 'W240']);
+    expect(club.every((s) => s['space'] == 'club_a'), isTrue);
+  });
 }

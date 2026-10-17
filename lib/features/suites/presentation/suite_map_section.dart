@@ -66,8 +66,7 @@ List<List<double>> _points(Iterable<PlanPoint> points) => [
 /// Map labels by map area, from each space's configured name. Positions with no
 /// space keep their plan label.
 Map<String, String> mapLabelsFor(List<Map<String, dynamic>> venueSuites) => {
-  for (final s in venueSuites)
-    ?_areaOf(s): mapLabel(s['name'] as String),
+  for (final s in venueSuites) ?_areaOf(s): mapLabel(s['name'] as String),
 };
 
 Map<String, Object?> buildSuiteColorScene(
@@ -83,7 +82,7 @@ Map<String, Object?> buildSuiteColorScene(
     for (final suite in premiumLevelSuites)
       {
         'id': suite.number,
-        'label': labels[suite.number] ?? suite.number,
+        'label': _suiteLabel(labels[suite.number] ?? suite.number),
         'points': _points(suite.points),
         'color': _hex(colors[suite.number] ?? SuiteMapStatus.unassigned.color),
         'muted': !colors.containsKey(suite.number),
@@ -104,7 +103,30 @@ Map<String, Object?> buildSuiteColorScene(
     'color': _hex(colors[arenaFloorArea] ?? SuiteMapStatus.unassigned.color),
     'muted': !colors.containsKey(arenaFloorArea),
   },
+  // Drawn at ground level between footprint and bowlEdge, under the premium level.
+  'concourse': {
+    'id': concourseArea,
+    'label': labels[concourseArea] ?? 'Concourse',
+    'color': _hex(colors[concourseArea] ?? SuiteMapStatus.unassigned.color),
+    'muted': !colors.containsKey(concourseArea),
+  },
+  // Seating sections, for orientation only: the scene draws them but never selects them.
+  'sections': [
+    for (final section in lowerBowlSections)
+      {'id': section.name, 'kind': 'bowl', 'points': _points(section.points)},
+    for (final section in westClubSections)
+      {
+        'id': section.name,
+        'kind': 'club',
+        'space': 'club_a',
+        'points': _points(section.points),
+      },
+  ],
 };
+
+/// Suite labels read like the seating chart: a bare number becomes 'S204'.
+String _suiteLabel(String label) =>
+    RegExp(r'^\d+$').hasMatch(label) ? 'S$label' : label;
 
 Map<String, Object?> buildSuiteMapScene(
   Map<String, SuiteMapStatus> statuses, {
@@ -270,7 +292,12 @@ class _SuitePanel extends ConsumerWidget {
         .where((c) => c.mapArea == areaId)
         .firstOrNull;
     final isFloor = areaId == arenaFloorArea;
-    final noun = isFloor ? 'arena floor' : (club == null ? 'suite' : 'club');
+    final isConcourse = areaId == concourseArea;
+    final noun = isFloor
+        ? 'arena floor'
+        : isConcourse
+        ? 'concourse'
+        : (club == null ? 'suite' : 'club');
     final order = assignment == null
         ? null
         : (ref.watch(suiteOrdersProvider(eventId)).value ?? const [])
@@ -289,9 +316,11 @@ class _SuitePanel extends ConsumerWidget {
               (venueSuite?['name'] as String?) ??
                   (isFloor
                       ? 'Arena floor'
+                      : isConcourse
+                      ? 'Concourse'
                       : club == null
                       ? 'Suite $areaId'
-                      : 'Premium ${club.label}'),
+                      : club.label),
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 10),

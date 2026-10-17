@@ -30,6 +30,9 @@ Migrations live in `supabase/migrations/` and must be applied in order:
 22. `0031_arena_floor_service_area.sql`: the arena floor as a serviceable, tappable space on the map
 23. `0032_space_map_positions.sql`: pins every suite to its map position so spaces can be renamed and renumbered
 24. `0033_document_imports.sql`: private `documents` bucket for BEO and menu files read by the assistant
+25. `0034_sales_packages.sql`: editable premium sales packages and pricing for the Sales page, and the `manage_sales` permission
+26. `0035_club_names.sql`: renames the placeholder clubs West Club and Loge Club
+27. `0036_concourse_service_area.sql`: the concourse as a serviceable, tappable space on the map
 
 Migration `0011` rejects early floor-plan rows whose `venue_id` differs from their venue space. Migration `0015` rejects existing rows with cross-venue references. Migration `0016` can reject closeouts already signed by the same person in both roles. Investigate and correct these rows before retrying. After applying, run every rolled-back script in `supabase/tests/` against that database. A local PostgreSQL server is required for these checks; Flutter tests do not execute SQL migrations.
 
