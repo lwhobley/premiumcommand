@@ -160,7 +160,7 @@ class _Sidebar extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'CUTX Premium Command',
+                      'Premium Command',
                       style: TextStyle(
                         fontSize: 20,
                         height: 1.15,

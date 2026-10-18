@@ -136,10 +136,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     const SizedBox(height: AppSpace.xl),
                     const Kicker('Premium hospitality operations'),
                     const SizedBox(height: 8),
-                    const Text(
-                      'CUTX Premium Command',
-                      style: AppText.screenTitle,
-                    ),
+                    const Text('Premium Command', style: AppText.screenTitle),
                     const SizedBox(height: 8),
                     Text(
                       'Credit Union of Texas Event Center',

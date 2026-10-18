@@ -48,7 +48,7 @@ void main() {
     ) async {
       final container = await pumpApp(tester, const Size(375, 812));
       expect(find.byType(NavigationBar), findsOneWidget);
-      expect(find.text('CUTX Premium Command'), findsNothing);
+      expect(find.text('Premium Command'), findsNothing);
       expect(tester.takeException(), isNull);
       await closeApp(tester, container);
     });
@@ -58,7 +58,7 @@ void main() {
     ) async {
       final container = await pumpApp(tester, const Size(1280, 800));
       expect(find.byType(NavigationBar), findsNothing);
-      expect(find.text('CUTX Premium Command'), findsOneWidget);
+      expect(find.text('Premium Command'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await closeApp(tester, container);
     });
