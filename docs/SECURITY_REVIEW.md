@@ -28,6 +28,7 @@ An additional full review on October 14, 2026 found cross-venue child references
 ## Resolved since the earlier list
 
 - **Push notifications.** Verified on a device. Delivery depends on the deployed `send-push` function, Firebase credentials and the per-environment function URL from migration `0017`. Web push is not included.
+- **Isolation checks in CI.** The `database-tests` job in `.github/workflows/ci.yml` starts a local Supabase stack, applies every migration, and runs every script in `supabase/tests/`. It needs no project credentials.
 - **Other venue configuration.** Not needed. The app serves a single venue, so event types, department names and service-level targets stay fixed in code.
 - **Department membership admin.** Administrators assign departments in Admin > People (`set_person_department`, `list_venue_people`). The app serves a single venue, so the venue member list is the user directory and no cross-venue directory is needed.
 
@@ -43,7 +44,7 @@ An additional full review on October 14, 2026 found cross-venue child references
 ## Still open
 
 1. **Escalation limits are configured per venue, not per category.** Category-level thresholds would need a second dimension in `escalation_rules`.
-2. **The isolation checks are a script, not a CI job.** `supabase/tests/rls_and_rules.sql` runs against a database with the migrations applied. CI has no database credentials, so it does not run there.
+
 
 
 Each of these is a decision or a missing credential, not a hidden risk in the current behavior.
