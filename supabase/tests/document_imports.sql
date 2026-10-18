@@ -1,6 +1,10 @@
 -- Run after migration 0033. The transaction rolls back all test rows.
 begin;
 
+-- Newer Storage versions block direct deletes unless this setting is on. It lasts only for this
+-- transaction, and the delete policies are still the thing under test.
+select set_config('storage.allow_delete_query', 'true', true);
+
 do $$
 declare
   v_org uuid := gen_random_uuid();

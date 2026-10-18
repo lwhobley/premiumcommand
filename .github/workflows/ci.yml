@@ -49,3 +49,28 @@ jobs:
       # Prompt, schema, and proposal checks. No API key or database needed.
       - name: Test
         run: deno test --no-lock supabase/functions/
+
+  database-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Starts a throwaway local stack and applies every migration in order.
+      # No project credentials are used.
+      - name: Start local Supabase
+        run: supabase start -x realtime,studio,imgproxy,mailpit,edge-runtime,logflare,vector,supavisor,postgres-meta
+
+      # Each script runs in a transaction that rolls back. A failed check raises an
+      # exception, and ON_ERROR_STOP turns that into a failed step.
+      - name: Run isolation and rule checks
+        run: |
+          for f in supabase/tests/*.sql; do
+            echo "::group::$f"
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -v ON_ERROR_STOP=1 -f "$f"
+            echo "::endgroup::"
+          done
