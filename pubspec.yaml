@@ -73,7 +73,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/fonts/NotoSans.ttf
-    - assets/images/cutx_event_center_logo.png
+    - assets/images/premium_command_logo.png
     # The suite map page, loaded by the iOS/Android WebView.
     - web/three/suite_map.html
     - web/three/suite_map.js

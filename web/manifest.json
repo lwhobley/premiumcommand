@@ -1,6 +1,6 @@
 {
-    "name": "cutx_premium_command",
-    "short_name": "cutx_premium_command",
+    "name": "Premium Command",
+    "short_name": "Premium Command",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

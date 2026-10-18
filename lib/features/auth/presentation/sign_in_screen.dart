@@ -127,19 +127,19 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   children: [
                     Align(
                       alignment: Alignment.centerLeft,
-                      child: Image.asset(
-                        'assets/images/cutx_event_center_logo.png',
-                        width: 132,
-                        semanticLabel: 'CUTX Event Center',
+                      child: ClipRRect(
+                        borderRadius: AppRadius.all,
+                        child: Image.asset(
+                          'assets/images/premium_command_logo.png',
+                          width: 132,
+                          semanticLabel: 'Premium Command',
+                        ),
                       ),
                     ),
                     const SizedBox(height: AppSpace.xl),
                     const Kicker('Premium hospitality operations'),
                     const SizedBox(height: 8),
-                    const Text(
-                      'CUTX Premium Command',
-                      style: AppText.screenTitle,
-                    ),
+                    const Text('Premium Command', style: AppText.screenTitle),
                     const SizedBox(height: 8),
                     Text(
                       'Credit Union of Texas Event Center',
