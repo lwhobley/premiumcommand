@@ -2,7 +2,7 @@
 
 Reviewed against the Supabase advisors and the migration rules. Migration `0007` and the function fix that followed it closed the open items listed in the previous review.
 
-An additional full review on October 14, 2026 found cross-venue child references, workflow insert bypasses, shared-device cache leaks, and offline retry risks. Migrations `0015`–`0020` and the client changes address those findings. They were applied to the Premium Command Supabase project on October 14, 2026 and the rolled-back SQL checks completed without errors. A real-device push test remains open.
+An additional full review on October 14, 2026 found cross-venue child references, workflow insert bypasses, shared-device cache leaks, and offline retry risks. Migrations `0015`–`0020` and the client changes address those findings. They were applied to the Premium Command Supabase project on October 14, 2026 and the rolled-back SQL checks completed without errors. Push notifications were verified on a device by the venue operator.
 
 ## Checked
 
@@ -25,6 +25,11 @@ An additional full review on October 14, 2026 found cross-venue child references
 | Demo bypass | Demo sign-in is shown only when no backend is configured. |
 | Performance | `auth.uid()` evaluated once per statement. Write policies split per command. Indexes added on hot foreign keys. |
 
+## Resolved since the earlier list
+
+- **Push notifications.** Verified on a device. Delivery depends on the deployed `send-push` function, Firebase credentials and the per-environment function URL from migration `0017`. Web push is not included.
+- **Department membership admin.** Administrators assign departments in Admin > People (`set_person_department`, `list_venue_people`). The app serves a single venue, so the venue member list is the user directory and no cross-venue directory is needed.
+
 ## Defects found and fixed in this round
 
 - **Department check silently passed.** `transition_service_request` compared `assigned_user_id = auth.uid()` directly. For a department-level request that comparison is NULL, and `NULL OR false` is NULL, so the `IF NOT ...` check did not raise. Any operator could act on another department's request. Fixed with `coalesce` in migration `0007`, and the rule test now catches it.
@@ -36,10 +41,8 @@ An additional full review on October 14, 2026 found cross-venue child references
 
 ## Still open
 
-1. **Push notifications are built but unverified on a device.** Devices register a token (`device_tokens`), and a trigger on `notifications` queues a call to the `send-push` Edge Function. Migration `0017` requires each environment to configure its own verified function URL; delivery also requires a deployed function, Firebase credentials, and a real device test. Web push is not included.
-2. **Department membership has no admin screen.** It is stored and enforced, but people are assigned by SQL (or the Supabase dashboard) for now. The admin screen needs a user directory, which the app does not have yet.
-3. **Escalation limits are configured per venue, not per category.** Category-level thresholds would need a second dimension in `escalation_rules`.
-4. **The isolation checks are a script, not a CI job.** `supabase/tests/rls_and_rules.sql` runs against a database with the migrations applied. CI has no database credentials, so it does not run there.
-5. **Other venue configuration is not built.** Event types, department names, and service-level targets are fixed in code.
+1. **Escalation limits are configured per venue, not per category.** Category-level thresholds would need a second dimension in `escalation_rules`.
+2. **The isolation checks are a script, not a CI job.** `supabase/tests/rls_and_rules.sql` runs against a database with the migrations applied. CI has no database credentials, so it does not run there.
+3. **Other venue configuration is not built.** Event types, department names, and service-level targets are fixed in code.
 
 Each of these is a decision or a missing credential, not a hidden risk in the current behavior.
