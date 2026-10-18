@@ -127,10 +127,13 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   children: [
                     Align(
                       alignment: Alignment.centerLeft,
-                      child: Image.asset(
-                        'assets/images/cutx_event_center_logo.png',
-                        width: 132,
-                        semanticLabel: 'CUTX Event Center',
+                      child: ClipRRect(
+                        borderRadius: AppRadius.all,
+                        child: Image.asset(
+                          'assets/images/premium_command_logo.png',
+                          width: 132,
+                          semanticLabel: 'Premium Command',
+                        ),
                       ),
                     ),
                     const SizedBox(height: AppSpace.xl),
