@@ -122,7 +122,9 @@ void main() {
 
       // The page's list; the text fields inside it scroll too.
       final page = find.byType(Scrollable).first;
-      expect(find.text('The notes name this event.'), findsOneWidget);
+      final reason = find.text('The notes name this event.');
+      await tester.scrollUntilVisible(reason, 200, scrollable: page);
+      expect(reason, findsOneWidget);
       final summary = find.text('Headcount rises to 180.');
       await tester.scrollUntilVisible(summary, 200, scrollable: page);
       expect(summary, findsOneWidget);

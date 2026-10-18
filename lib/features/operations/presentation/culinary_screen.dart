@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/icons/phosphor.dart';
+
 import '../../../core/permissions/app_permission.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/time/venue_time.dart';
-import '../../../core/widgets/status_chip.dart';
+import '../../../core/widgets/broadsheet.dart';
+import '../../../core/widgets/tag.dart';
 import '../../auth/application/session_controller.dart';
 import '../../auth/domain/app_session.dart';
 import '../../events/domain/readiness.dart';
@@ -22,7 +25,9 @@ class CulinaryScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (!backendAvailable) return const BackendRequired(title: 'Banquets & Culinary');
+    if (!backendAvailable) {
+      return const BackendRequired(title: 'Banquets & Culinary');
+    }
 
     final session = ref.watch(sessionProvider);
     final permissions = session?.permissions ?? const <AppPermission>{};
@@ -31,24 +36,56 @@ class CulinaryScreen extends ConsumerWidget {
     return DefaultTabController(
       length: 3,
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Banquets & Culinary'),
-          bottom: const TabBar(tabs: [Tab(text: 'Timeline'), Tab(text: 'Culinary'), Tab(text: 'Menu')]),
-        ),
-        body: Column(
-          children: [
-            const EventPicker(),
-            if (eventId != null)
-              Expanded(
-                child: TabBarView(
-                  children: [
-                    _TimelineTab(eventId: eventId, session: session, permissions: permissions),
-                    _BatchTab(eventId: eventId, session: session, permissions: permissions),
-                    _MenuTab(eventId: eventId, permissions: permissions),
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const ScreenHeader(
+                kicker: 'Operations',
+                title: 'Banquets & Culinary',
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: AppSpace.screen - 16),
+                child: TabBar(
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
+                  tabs: [
+                    Tab(text: 'Timeline'),
+                    Tab(text: 'Culinary'),
+                    Tab(text: 'Menu'),
                   ],
                 ),
               ),
-          ],
+              const Padding(
+                padding: EdgeInsets.fromLTRB(
+                  AppSpace.screen,
+                  AppSpace.m,
+                  AppSpace.screen,
+                  0,
+                ),
+                child: EventPicker(),
+              ),
+              if (eventId != null)
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      _TimelineTab(
+                        eventId: eventId,
+                        session: session,
+                        permissions: permissions,
+                      ),
+                      _BatchTab(
+                        eventId: eventId,
+                        session: session,
+                        permissions: permissions,
+                      ),
+                      _MenuTab(eventId: eventId, permissions: permissions),
+                    ],
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -56,7 +93,11 @@ class CulinaryScreen extends ConsumerWidget {
 }
 
 class _TimelineTab extends ConsumerWidget {
-  const _TimelineTab({required this.eventId, required this.session, required this.permissions});
+  const _TimelineTab({
+    required this.eventId,
+    required this.session,
+    required this.permissions,
+  });
 
   final String eventId;
   final AppSession? session;
@@ -72,64 +113,85 @@ class _TimelineTab extends ConsumerWidget {
       floatingActionButton: canManage
           ? FloatingActionButton.extended(
               onPressed: () => _add(context, ref),
-              icon: const Icon(Icons.add),
+              icon: const PhosphorIcon(PhosphorIconsDuotone.plus),
               label: const Text('Timeline item'),
             )
           : null,
       body: items.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('$error')),
+        loading: () => const Align(
+          alignment: Alignment.topCenter,
+          child: LinearProgressIndicator(),
+        ),
+        error: (error, _) => _Note('$error'),
         data: (list) {
-          if (list.isEmpty) return const Center(child: Text('No timeline items yet.'));
+          if (list.isEmpty) return const _Note('No timeline items yet.');
           return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpace.screen,
+              8,
+              AppSpace.screen,
+              96,
+            ),
             children: [
               for (final item in list)
-                Card(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Column(
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpace.row),
+                  child: OpenRow(
+                    title: item.title,
+                    trailing: Tag(
+                      item.isLate(now) ? 'Late' : item.status.label,
+                      item.isLate(now) ||
+                              item.status == TimelineStatus.late ||
+                              item.status == TimelineStatus.blocked
+                          ? Tone.alert
+                          : item.status == TimelineStatus.done ||
+                                item.status == TimelineStatus.inProgress
+                          ? Tone.accent
+                          : Tone.neutral,
+                    ),
+                    meta:
+                        '${DateFormat('h:mm a').format(atVenue(item.scheduledStart, session?.timeZone ?? 'UTC'))} · ${item.department.label}'
+                        '${item.assigneeName.isEmpty ? '' : ' · ${item.assigneeName}'}',
+                    below: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(children: [
-                          Expanded(child: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w600))),
-                          StatusChip(
-                            label: item.isLate(now) ? 'Late' : item.status.label,
-                            color: item.isLate(now) || item.status == TimelineStatus.late
-                                ? AppColors.delayed
-                                : item.status == TimelineStatus.done
-                                    ? AppColors.ready
-                                    : item.status == TimelineStatus.blocked
-                                        ? AppColors.blocked
-                                        : AppColors.inProgress,
-                          ),
-                        ]),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${DateFormat('h:mm a').format(atVenue(item.scheduledStart, session?.timeZone ?? 'UTC'))} · ${item.department.label}'
-                          '${item.assigneeName.isEmpty ? '' : ' · ${item.assigneeName}'}',
-                          style: const TextStyle(color: AppColors.charcoalMuted, fontSize: 13),
+                        if (item.notes.isNotEmpty) ...[
+                          Text(item.notes, style: AppText.body),
+                          const SizedBox(height: 8),
+                        ],
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            if (item.status != TimelineStatus.done &&
+                                item.status != TimelineStatus.inProgress)
+                              OutlinedButton(
+                                onPressed: () => _set(
+                                  context,
+                                  ref,
+                                  item,
+                                  TimelineStatus.inProgress,
+                                ),
+                                child: const Text('Start'),
+                              ),
+                            if (item.status != TimelineStatus.done)
+                              FilledButton.tonal(
+                                onPressed: () => _set(
+                                  context,
+                                  ref,
+                                  item,
+                                  TimelineStatus.done,
+                                ),
+                                child: const Text('Done'),
+                              ),
+                            if (item.status != TimelineStatus.blocked &&
+                                item.status != TimelineStatus.done)
+                              TextButton(
+                                onPressed: () => _block(context, ref, item),
+                                child: const Text('Block'),
+                              ),
+                          ],
                         ),
-                        if (item.notes.isNotEmpty) Text(item.notes),
-                        const SizedBox(height: 8),
-                        Wrap(spacing: 8, children: [
-                          if (item.status != TimelineStatus.done && item.status != TimelineStatus.inProgress)
-                            OutlinedButton(
-                              onPressed: () => _set(context, ref, item, TimelineStatus.inProgress),
-                              child: const Text('Start'),
-                            ),
-                          if (item.status != TimelineStatus.done)
-                            FilledButton.tonal(
-                              onPressed: () => _set(context, ref, item, TimelineStatus.done),
-                              child: const Text('Done'),
-                            ),
-                          if (item.status != TimelineStatus.blocked && item.status != TimelineStatus.done)
-                            TextButton(
-                              onPressed: () => _block(context, ref, item),
-                              child: const Text('Block'),
-                            ),
-                        ]),
                       ],
                     ),
                   ),
@@ -141,17 +203,32 @@ class _TimelineTab extends ConsumerWidget {
     );
   }
 
-  Future<void> _set(BuildContext context, WidgetRef ref, TimelineItem item, TimelineStatus to, {String note = ''}) async {
+  Future<void> _set(
+    BuildContext context,
+    WidgetRef ref,
+    TimelineItem item,
+    TimelineStatus to, {
+    String note = '',
+  }) async {
     await runWrite(context, () async {
-      await ref.read(operationsRepositoryProvider).setTimelineStatus(item, to, note: note);
+      await ref
+          .read(operationsRepositoryProvider)
+          .setTimelineStatus(item, to, note: note);
       ref.invalidate(timelineProvider(eventId));
     });
   }
 
-  Future<void> _block(BuildContext context, WidgetRef ref, TimelineItem item) async {
+  Future<void> _block(
+    BuildContext context,
+    WidgetRef ref,
+    TimelineItem item,
+  ) async {
     final reason = await showDialog<String>(
       context: context,
-      builder: (_) => const _TextPromptDialog(title: 'Why is this blocked?', label: 'Reason'),
+      builder: (_) => const _TextPromptDialog(
+        title: 'Why is this blocked?',
+        label: 'Reason',
+      ),
     );
     if (reason == null || reason.isEmpty || !context.mounted) return;
     await _set(context, ref, item, TimelineStatus.blocked, note: reason);
@@ -165,7 +242,9 @@ class _TimelineTab extends ConsumerWidget {
     );
     if (draft == null || session == null || !context.mounted) return;
     await runWrite(context, () async {
-      await ref.read(operationsRepositoryProvider).addTimelineItem(
+      await ref
+          .read(operationsRepositoryProvider)
+          .addTimelineItem(
             venueId: session.venueId,
             eventId: eventId,
             title: draft.title,
@@ -180,7 +259,11 @@ class _TimelineTab extends ConsumerWidget {
 }
 
 class _BatchTab extends ConsumerWidget {
-  const _BatchTab({required this.eventId, required this.session, required this.permissions});
+  const _BatchTab({
+    required this.eventId,
+    required this.session,
+    required this.permissions,
+  });
 
   final String eventId;
   final AppSession? session;
@@ -198,51 +281,54 @@ class _BatchTab extends ConsumerWidget {
       floatingActionButton: canProduce
           ? FloatingActionButton.extended(
               onPressed: () => _add(context, ref),
-              icon: const Icon(Icons.add),
+              icon: const PhosphorIcon(PhosphorIconsDuotone.plus),
               label: const Text('Batch'),
             )
           : null,
       body: batches.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('$error')),
+        loading: () => const Align(
+          alignment: Alignment.topCenter,
+          child: LinearProgressIndicator(),
+        ),
+        error: (error, _) => _Note('$error'),
         data: (list) {
-          if (list.isEmpty) return const Center(child: Text('No culinary batches yet.'));
+          if (list.isEmpty) return const _Note('No culinary batches yet.');
           return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpace.screen,
+              8,
+              AppSpace.screen,
+              96,
+            ),
             children: [
               const Padding(
-                padding: EdgeInsets.only(bottom: 10),
+                padding: EdgeInsets.only(bottom: AppSpace.m),
                 child: Text(
                   'Ready is not delivered. Each handoff is recorded separately: ready, collected, delivered, received.',
-                  style: TextStyle(color: AppColors.charcoalMuted, fontSize: 13),
+                  style: AppText.meta,
                 ),
               ),
               for (final b in list)
-                Card(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(children: [
-                          Expanded(child: Text('${b.quantity} × ${b.description}',
-                              style: const TextStyle(fontWeight: FontWeight.w600))),
-                          StatusChip(label: b.state.label, color: _batchColor(b)),
-                        ]),
-                        const SizedBox(height: 4),
-                        Text(
-                          [
-                            if (b.destination.isNotEmpty) b.destination,
-                            if (b.dueAt != null) 'Due ${DateFormat('h:mm a').format(atVenue(b.dueAt!, session?.timeZone ?? 'UTC'))}',
-                            if (b.isLateDelivery()) 'Delivered late',
-                            if (b.receivedBy.isNotEmpty) 'Received by ${b.receivedBy}',
-                          ].join(' · '),
-                          style: const TextStyle(color: AppColors.charcoalMuted, fontSize: 13),
-                        ),
-                        const SizedBox(height: 8),
-                        _nextStep(context, ref, b, canProduce: canProduce, canRun: canRun, canReceive: canReceive),
-                      ],
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpace.row),
+                  child: OpenRow(
+                    title: '${b.quantity} × ${b.description}',
+                    trailing: Tag(b.state.label, _batchTone(b)),
+                    meta: [
+                      if (b.destination.isNotEmpty) b.destination,
+                      if (b.dueAt != null)
+                        'Due ${DateFormat('h:mm a').format(atVenue(b.dueAt!, session?.timeZone ?? 'UTC'))}',
+                      if (b.isLateDelivery()) 'Delivered late',
+                      if (b.receivedBy.isNotEmpty)
+                        'Received by ${b.receivedBy}',
+                    ].join(' · '),
+                    below: _nextStep(
+                      context,
+                      ref,
+                      b,
+                      canProduce: canProduce,
+                      canRun: canRun,
+                      canReceive: canReceive,
                     ),
                   ),
                 ),
@@ -253,8 +339,14 @@ class _BatchTab extends ConsumerWidget {
     );
   }
 
-  Widget _nextStep(BuildContext context, WidgetRef ref, CulinaryBatch b,
-      {required bool canProduce, required bool canRun, required bool canReceive}) {
+  Widget _nextStep(
+    BuildContext context,
+    WidgetRef ref,
+    CulinaryBatch b, {
+    required bool canProduce,
+    required bool canRun,
+    required bool canReceive,
+  }) {
     final next = b.state.next;
     if (next == null) return const SizedBox.shrink();
     final allowed = switch (next) {
@@ -278,14 +370,19 @@ class _BatchTab extends ConsumerWidget {
         if (next == BatchState.received) {
           final name = await showDialog<String>(
             context: context,
-            builder: (_) => const _TextPromptDialog(title: 'Who received it?', label: 'Receiver name'),
+            builder: (_) => const _TextPromptDialog(
+              title: 'Who received it?',
+              label: 'Receiver name',
+            ),
           );
           if (name == null || name.isEmpty || !context.mounted) return;
           receiver = name;
         }
         if (!context.mounted) return;
         await runWrite(context, () async {
-          await ref.read(operationsRepositoryProvider).advanceBatch(b, next, receiver: receiver);
+          await ref
+              .read(operationsRepositoryProvider)
+              .advanceBatch(b, next, receiver: receiver);
           ref.invalidate(batchesProvider(eventId));
         });
       },
@@ -293,12 +390,12 @@ class _BatchTab extends ConsumerWidget {
     );
   }
 
-  Color _batchColor(CulinaryBatch b) => switch (b.state) {
-        BatchState.received || BatchState.delivered => AppColors.ready,
-        BatchState.collected => AppColors.inProgress,
-        BatchState.ready => AppColors.attention,
-        _ => AppColors.neutral,
-      };
+  Tone _batchTone(CulinaryBatch b) => switch (b.state) {
+    BatchState.received || BatchState.delivered => Tone.accent,
+    BatchState.collected => Tone.accent,
+    BatchState.ready => Tone.accent,
+    _ => Tone.neutral,
+  };
 
   Future<void> _add(BuildContext context, WidgetRef ref) async {
     final draft = await showDialog<_BatchDraft>(
@@ -307,7 +404,9 @@ class _BatchTab extends ConsumerWidget {
     );
     if (draft == null || session == null || !context.mounted) return;
     await runWrite(context, () async {
-      await ref.read(operationsRepositoryProvider).createBatch(
+      await ref
+          .read(operationsRepositoryProvider)
+          .createBatch(
             venueId: session!.venueId,
             eventId: eventId,
             description: draft.description,
@@ -335,12 +434,17 @@ class _MenuTab extends ConsumerWidget {
       floatingActionButton: canEdit
           ? FloatingActionButton.extended(
               onPressed: () async {
-                final draft = await showDialog<_MenuDraft>(context: context, builder: (_) => const _MenuDialog());
+                final draft = await showDialog<_MenuDraft>(
+                  context: context,
+                  builder: (_) => const _MenuDialog(),
+                );
                 if (draft == null || !context.mounted) return;
                 final session = ref.read(sessionProvider);
                 if (session == null) return;
                 await runWrite(context, () async {
-                  await ref.read(operationsRepositoryProvider).addMenuItem(
+                  await ref
+                      .read(operationsRepositoryProvider)
+                      .addMenuItem(
                         venueId: session.venueId,
                         eventId: eventId,
                         name: draft.name,
@@ -351,46 +455,57 @@ class _MenuTab extends ConsumerWidget {
                   ref.invalidate(menuProvider(eventId));
                 }, success: 'Menu item added.');
               },
-              icon: const Icon(Icons.add),
+              icon: const PhosphorIcon(PhosphorIconsDuotone.plus),
               label: const Text('Menu item'),
             )
           : null,
       body: menu.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('$error')),
+        loading: () => const Align(
+          alignment: Alignment.topCenter,
+          child: LinearProgressIndicator(),
+        ),
+        error: (error, _) => _Note('$error'),
         data: (items) {
           // The document assistant is for administrators only.
-          final import = canEdit && permissions.contains(AppPermission.manageConfiguration)
+          final import =
+              canEdit && permissions.contains(AppPermission.manageConfiguration)
               ? Align(
                   alignment: Alignment.centerLeft,
                   child: TextButton.icon(
                     onPressed: () => _import(context, ref),
-                    icon: const Icon(Icons.auto_awesome),
+                    icon: const PhosphorIcon(PhosphorIconsDuotone.sparkle),
                     label: const Text('Import menu with AI'),
                   ),
                 )
               : null;
           if (items.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [const Text('No menu items yet.'), ?import],
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpace.screen,
+                8,
+                AppSpace.screen,
+                96,
               ),
+              children: [const EmptyNote('No menu items yet.'), ?import],
             );
           }
           return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpace.screen,
+              8,
+              AppSpace.screen,
+              96,
+            ),
             children: [
               ?import,
               for (final m in items)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(m.name),
-                  subtitle: Text([
+                OpenRow(
+                  title: m.name,
+                  meta: [
                     if (m.course.isNotEmpty) m.course,
                     if (m.dietaryTags.isNotEmpty) m.dietaryTags.join(', '),
                     if (m.allergens.isNotEmpty) 'Allergens: ${m.allergens}',
-                  ].join(' · ')),
+                  ].join(' · '),
                 ),
             ],
           );
@@ -401,9 +516,18 @@ class _MenuTab extends ConsumerWidget {
 
   /// Reads a menu document with the assistant and adds the dishes the administrator keeps.
   Future<void> _import(BuildContext context, WidgetRef ref) async {
-    final outcome = await showDocumentImport(context, kind: ImportKind.menu, eventId: eventId);
+    final outcome = await showDocumentImport(
+      context,
+      kind: ImportKind.menu,
+      eventId: eventId,
+    );
     final session = ref.read(sessionProvider);
-    if (outcome == null || outcome.menuItems.isEmpty || session == null || !context.mounted) return;
+    if (outcome == null ||
+        outcome.menuItems.isEmpty ||
+        session == null ||
+        !context.mounted) {
+      return;
+    }
     final count = outcome.menuItems.length;
     await runWrite(context, () async {
       final operations = ref.read(operationsRepositoryProvider);
@@ -422,8 +546,27 @@ class _MenuTab extends ConsumerWidget {
   }
 }
 
+/// A muted message for empty, loading-failed tabs, flush left at the screen padding.
+class _Note extends StatelessWidget {
+  const _Note(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => ListView(
+    padding: const EdgeInsets.fromLTRB(AppSpace.screen, 8, AppSpace.screen, 96),
+    children: [EmptyNote(text)],
+  );
+}
+
 class _TimelineDraft {
-  const _TimelineDraft({required this.title, required this.department, required this.assignee, required this.start, this.target});
+  const _TimelineDraft({
+    required this.title,
+    required this.department,
+    required this.assignee,
+    required this.start,
+    this.target,
+  });
 
   final String title;
   final Department department;
@@ -462,42 +605,66 @@ class _TimelineDialogState extends State<_TimelineDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: _title, decoration: InputDecoration(labelText: 'What happens', errorText: _error)),
+            TextField(
+              controller: _title,
+              decoration: InputDecoration(
+                labelText: 'What happens',
+                errorText: _error,
+              ),
+            ),
             const SizedBox(height: 10),
-            TextField(controller: _assignee, decoration: const InputDecoration(labelText: 'Assigned to')),
+            TextField(
+              controller: _assignee,
+              decoration: const InputDecoration(labelText: 'Assigned to'),
+            ),
             const SizedBox(height: 10),
             DropdownButtonFormField<Department>(
               initialValue: _dept,
               decoration: const InputDecoration(labelText: 'Department'),
-              items: [for (final d in Department.values) DropdownMenuItem(value: d, child: Text(d.label))],
+              items: [
+                for (final d in Department.values)
+                  DropdownMenuItem(value: d, child: Text(d.label)),
+              ],
               onChanged: (v) => setState(() => _dept = v ?? _dept),
             ),
             const SizedBox(height: 10),
             OutlinedButton(
               onPressed: () async {
-                final picked = await pickDateTime(context, _start, timeZone: widget.timeZone);
+                final picked = await pickDateTime(
+                  context,
+                  _start,
+                  timeZone: widget.timeZone,
+                );
                 if (picked != null && mounted) setState(() => _start = picked);
               },
-              child: Text('Starts ${DateFormat('MMM d, h:mm a').format(atVenue(_start, widget.timeZone))} ${widget.timeZone}'),
+              child: Text(
+                'Starts ${DateFormat('MMM d, h:mm a').format(atVenue(_start, widget.timeZone))} ${widget.timeZone}',
+              ),
             ),
           ],
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
         FilledButton(
           onPressed: () {
             if (_title.text.trim().isEmpty) {
               setState(() => _error = 'Describe the item.');
               return;
             }
-            Navigator.pop(context, _TimelineDraft(
-              title: _title.text.trim(),
-              department: _dept,
-              assignee: _assignee.text.trim(),
-              start: _start,
-              target: null,
-            ));
+            Navigator.pop(
+              context,
+              _TimelineDraft(
+                title: _title.text.trim(),
+                department: _dept,
+                assignee: _assignee.text.trim(),
+                start: _start,
+                target: null,
+              ),
+            );
           },
           child: const Text('Add'),
         ),
@@ -507,7 +674,12 @@ class _TimelineDialogState extends State<_TimelineDialog> {
 }
 
 class _BatchDraft {
-  const _BatchDraft({required this.description, required this.quantity, required this.destination, this.due});
+  const _BatchDraft({
+    required this.description,
+    required this.quantity,
+    required this.destination,
+    this.due,
+  });
 
   final String description;
   final int quantity;
@@ -546,26 +718,50 @@ class _BatchDialogState extends State<_BatchDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: _description, decoration: InputDecoration(labelText: 'Dish or item', errorText: _error)),
+            TextField(
+              controller: _description,
+              decoration: InputDecoration(
+                labelText: 'Dish or item',
+                errorText: _error,
+              ),
+            ),
             const SizedBox(height: 10),
-            TextField(controller: _quantity, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Quantity')),
+            TextField(
+              controller: _quantity,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Quantity'),
+            ),
             const SizedBox(height: 10),
-            TextField(controller: _destination, decoration: const InputDecoration(labelText: 'Destination (suite, pickup point)')),
+            TextField(
+              controller: _destination,
+              decoration: const InputDecoration(
+                labelText: 'Destination (suite, pickup point)',
+              ),
+            ),
             const SizedBox(height: 10),
             OutlinedButton(
               onPressed: () async {
-                final picked = await pickDateTime(context, _due ?? DateTime.now().add(const Duration(hours: 1)),
-                    timeZone: widget.timeZone);
+                final picked = await pickDateTime(
+                  context,
+                  _due ?? DateTime.now().add(const Duration(hours: 1)),
+                  timeZone: widget.timeZone,
+                );
                 if (picked != null && mounted) setState(() => _due = picked);
               },
-              child: Text(_due == null ? 'Set due time' :
-                  'Due ${DateFormat('h:mm a').format(atVenue(_due!, widget.timeZone))} ${widget.timeZone}'),
+              child: Text(
+                _due == null
+                    ? 'Set due time'
+                    : 'Due ${DateFormat('h:mm a').format(atVenue(_due!, widget.timeZone))} ${widget.timeZone}',
+              ),
             ),
           ],
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
         FilledButton(
           onPressed: () {
             final qty = int.tryParse(_quantity.text.trim());
@@ -577,12 +773,15 @@ class _BatchDialogState extends State<_BatchDialog> {
               setState(() => _error = 'Quantity must be at least 1.');
               return;
             }
-            Navigator.pop(context, _BatchDraft(
-              description: _description.text.trim(),
-              quantity: qty,
-              destination: _destination.text.trim(),
-              due: _due,
-            ));
+            Navigator.pop(
+              context,
+              _BatchDraft(
+                description: _description.text.trim(),
+                quantity: qty,
+                destination: _destination.text.trim(),
+                due: _due,
+              ),
+            );
           },
           child: const Text('Add'),
         ),
@@ -592,7 +791,12 @@ class _BatchDialogState extends State<_BatchDialog> {
 }
 
 class _MenuDraft {
-  const _MenuDraft({required this.name, required this.course, required this.allergens, required this.tags});
+  const _MenuDraft({
+    required this.name,
+    required this.course,
+    required this.allergens,
+    required this.tags,
+  });
 
   final String name;
   final String course;
@@ -629,27 +833,51 @@ class _MenuDialogState extends State<_MenuDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: _name, decoration: const InputDecoration(labelText: 'Name')),
+            TextField(
+              controller: _name,
+              decoration: const InputDecoration(labelText: 'Name'),
+            ),
             const SizedBox(height: 10),
-            TextField(controller: _course, decoration: const InputDecoration(labelText: 'Course')),
+            TextField(
+              controller: _course,
+              decoration: const InputDecoration(labelText: 'Course'),
+            ),
             const SizedBox(height: 10),
-            TextField(controller: _tags, decoration: const InputDecoration(labelText: 'Dietary tags (comma separated)')),
+            TextField(
+              controller: _tags,
+              decoration: const InputDecoration(
+                labelText: 'Dietary tags (comma separated)',
+              ),
+            ),
             const SizedBox(height: 10),
-            TextField(controller: _allergens, decoration: const InputDecoration(labelText: 'Allergens')),
+            TextField(
+              controller: _allergens,
+              decoration: const InputDecoration(labelText: 'Allergens'),
+            ),
           ],
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
         FilledButton(
           onPressed: () {
             if (_name.text.trim().isEmpty) return;
-            Navigator.pop(context, _MenuDraft(
-              name: _name.text.trim(),
-              course: _course.text.trim(),
-              allergens: _allergens.text.trim(),
-              tags: _tags.text.split(',').map((t) => t.trim()).where((t) => t.isNotEmpty).toList(),
-            ));
+            Navigator.pop(
+              context,
+              _MenuDraft(
+                name: _name.text.trim(),
+                course: _course.text.trim(),
+                allergens: _allergens.text.trim(),
+                tags: _tags.text
+                    .split(',')
+                    .map((t) => t.trim())
+                    .where((t) => t.isNotEmpty)
+                    .toList(),
+              ),
+            );
           },
           child: const Text('Add'),
         ),
@@ -681,10 +909,20 @@ class _TextPromptDialogState extends State<_TextPromptDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Text(widget.title),
-      content: TextField(controller: _controller, autofocus: true, decoration: InputDecoration(labelText: widget.label)),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        decoration: InputDecoration(labelText: widget.label),
+      ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-        FilledButton(onPressed: () => Navigator.pop(context, _controller.text.trim()), child: const Text('Confirm')),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _controller.text.trim()),
+          child: const Text('Confirm'),
+        ),
       ],
     );
   }

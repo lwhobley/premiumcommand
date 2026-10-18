@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/broadsheet.dart';
 import '../planning/application/planning_providers.dart';
 import '../staffing/domain/staffing.dart';
+import '../suites/domain/premium_level_layout.dart';
 import '../suites/domain/suite.dart';
 import '../suites/presentation/suite_map_section.dart';
 import '../suites/presentation/suite_map_view.dart';
@@ -54,46 +57,67 @@ class PremiumLevelCard extends ConsumerWidget {
           ),
     ];
 
+    final byArea = {
+      for (final a in assignments)
+        if (a.planArea != null) a.planArea!: a,
+    };
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Premium level', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 4),
-        Text(
-          heading,
-          style: const TextStyle(color: AppColors.charcoalMuted, fontSize: 13),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 12,
-          runSpacing: 4,
-          children: [
-            for (final entry in {
-              'Ready or in service': suiteStateColor(SuiteState.ready),
-              'Setup or closing': suiteStateColor(SuiteState.setupInProgress),
-              'Not started': suiteStateColor(SuiteState.notStarted),
-              'Not in this event': SuiteMapStatus.unassigned.color,
-            }.entries)
-              Row(
-                mainAxisSize: MainAxisSize.min,
+        const SectionHeading('Premium level'),
+        Text(heading, style: AppText.meta),
+        const SizedBox(height: 12),
+        // One cell per suite, colored by its state. Opens Premium Spaces.
+        Semantics(
+          button: true,
+          label: 'Open Premium Spaces',
+          child: InkWell(
+            onTap: () => context.go('/spaces'),
+            borderRadius: AppRadius.all,
+            child: SizedBox(
+              height: AppSpace.minTap,
+              child: Row(
                 children: [
-                  Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: entry.value,
-                      borderRadius: BorderRadius.circular(3),
+                  for (final (i, suite) in premiumLevelSuites.indexed) ...[
+                    if (i > 0) const SizedBox(width: 2),
+                    Expanded(
+                      child: Tooltip(
+                        message: byArea[suite.number] == null
+                            ? 'S${suite.number} · not in this event'
+                            : 'S${suite.number} · ${byArea[suite.number]!.state.label}',
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: byArea[suite.number] == null
+                                ? SuiteMapStatus.unassigned.color
+                                : suiteStateColor(byArea[suite.number]!.state),
+                            borderRadius: AppRadius.all,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(entry.key, style: const TextStyle(fontSize: 12)),
+                  ],
                 ],
               ),
-          ],
+            ),
+          ),
         ),
         const SizedBox(height: 10),
+        Wrap(
+          spacing: 14,
+          runSpacing: 6,
+          children: [
+            for (final state in SuiteState.values)
+              _Swatch(color: suiteStateColor(state), label: state.label),
+            _Swatch(
+              color: SuiteMapStatus.unassigned.color,
+              label: 'Not in this event',
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpace.l),
         ClipRRect(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppRadius.all,
           child: SizedBox(
             height: 360,
             child: SuiteMapView(
@@ -122,18 +146,20 @@ class PremiumLevelCard extends ConsumerWidget {
             ),
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: AppSpace.m),
         if (id != null && assignments.isEmpty)
           const Text(
             'Nothing on the premium level is assigned to this event yet. Add spaces under Premium Spaces.',
-            style: TextStyle(color: AppColors.charcoalMuted),
+            style: AppText.meta,
           )
         else if (id != null) ...[
           Text(
             onSuites.isEmpty
                 ? 'No staff placed in a premium space yet.'
                 : 'Staff in premium spaces',
-            style: Theme.of(context).textTheme.titleSmall,
+            style: onSuites.isEmpty
+                ? AppText.meta
+                : const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
           for (final person in onSuites)
             Padding(
@@ -144,6 +170,29 @@ class PremiumLevelCard extends ConsumerWidget {
               ),
             ),
         ],
+      ],
+    );
+  }
+}
+
+class _Swatch extends StatelessWidget {
+  const _Swatch({required this.color, required this.label});
+
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(color: color, borderRadius: AppRadius.all),
+        ),
+        const SizedBox(width: 6),
+        Text(label, style: AppText.meta),
       ],
     );
   }

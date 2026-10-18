@@ -3,9 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/icons/phosphor.dart';
+
 import '../../../core/errors/app_failure.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/time/venue_time.dart';
+import '../../../core/widgets/broadsheet.dart';
 import '../../auth/application/session_controller.dart';
 import '../application/event_providers.dart';
 import '../domain/ops_event.dart';
@@ -59,7 +62,13 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
     );
     if (time == null || !mounted) return;
     setState(() {
-      _start = DateTime.utc(date.year, date.month, date.day, time.hour, time.minute);
+      _start = DateTime.utc(
+        date.year,
+        date.month,
+        date.day,
+        time.hour,
+        time.minute,
+      );
     });
   }
 
@@ -73,7 +82,9 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
       final venueId = ref.read(sessionProvider)?.venueId ?? '';
       final zone = ref.read(sessionProvider)?.timeZone ?? 'UTC';
       final startUtc = venueWallTimeUtc(_start, zone);
-      final created = await ref.read(eventActionsProvider).createEvent(
+      final created = await ref
+          .read(eventActionsProvider)
+          .createEvent(
             OpsEvent(
               id: '',
               venueId: venueId,
@@ -98,81 +109,111 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
   @override
   Widget build(BuildContext context) {
     final dateLabel = DateFormat('EEE MMM d, y · h:mm a').format(_start);
-    return Scaffold(
-      appBar: AppBar(title: const Text('New event')),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            TextFormField(
-              controller: _name,
-              decoration: const InputDecoration(labelText: 'Event name'),
-              validator: (value) =>
-                  (value == null || value.trim().isEmpty) ? 'Enter an event name.' : null,
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<EventType>(
-              initialValue: _type,
-              decoration: const InputDecoration(labelText: 'Event type'),
-              items: [
-                for (final type in EventType.values)
-                  DropdownMenuItem(value: type, child: Text(type.label)),
+    return PageScaffold(
+      back: Navigator.of(context).canPop() ? const BackLink() : null,
+      kicker: 'Events',
+      title: 'New event',
+      children: [
+        Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextFormField(
+                controller: _name,
+                decoration: const InputDecoration(labelText: 'Event name'),
+                validator: (value) => (value == null || value.trim().isEmpty)
+                    ? 'Enter an event name.'
+                    : null,
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<EventType>(
+                initialValue: _type,
+                decoration: const InputDecoration(labelText: 'Event type'),
+                items: [
+                  for (final type in EventType.values)
+                    DropdownMenuItem(value: type, child: Text(type.label)),
+                ],
+                onChanged: (value) => setState(() => _type = value ?? _type),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: _pickStart,
+                icon: const PhosphorIcon(PhosphorIconsDuotone.clock),
+                label: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Service start: $dateLabel'),
+                ),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<Duration>(
+                initialValue: _duration,
+                decoration: const InputDecoration(labelText: 'Service length'),
+                items: const [
+                  DropdownMenuItem(
+                    value: Duration(hours: 2),
+                    child: Text('2 hours'),
+                  ),
+                  DropdownMenuItem(
+                    value: Duration(hours: 3),
+                    child: Text('3 hours'),
+                  ),
+                  DropdownMenuItem(
+                    value: Duration(hours: 4),
+                    child: Text('4 hours'),
+                  ),
+                  DropdownMenuItem(
+                    value: Duration(hours: 6),
+                    child: Text('6 hours'),
+                  ),
+                ],
+                onChanged: (value) =>
+                    setState(() => _duration = value ?? _duration),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _guests,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Guaranteed guests',
+                ),
+                validator: (value) {
+                  final count = int.tryParse(value?.trim() ?? '');
+                  return count == null || count < 0
+                      ? 'Enter zero or more guests.'
+                      : null;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _manager,
+                decoration: const InputDecoration(labelText: 'Event manager'),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _notes,
+                minLines: 2,
+                maxLines: 5,
+                decoration: const InputDecoration(
+                  labelText: 'Operational notes',
+                ),
+              ),
+              const SizedBox(height: AppSpace.xl),
+              FilledButton(
+                onPressed: _saving ? null : _save,
+                child: Text(_saving ? 'Creating…' : 'Create event'),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _error!,
+                  style: const TextStyle(color: AppColors.accent2700),
+                ),
               ],
-              onChanged: (value) => setState(() => _type = value ?? _type),
-            ),
-            const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: _pickStart,
-              icon: const Icon(Icons.schedule),
-              label: Align(alignment: Alignment.centerLeft, child: Text('Service start: $dateLabel')),
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<Duration>(
-              initialValue: _duration,
-              decoration: const InputDecoration(labelText: 'Service length'),
-              items: const [
-                DropdownMenuItem(value: Duration(hours: 2), child: Text('2 hours')),
-                DropdownMenuItem(value: Duration(hours: 3), child: Text('3 hours')),
-                DropdownMenuItem(value: Duration(hours: 4), child: Text('4 hours')),
-                DropdownMenuItem(value: Duration(hours: 6), child: Text('6 hours')),
-              ],
-              onChanged: (value) => setState(() => _duration = value ?? _duration),
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _guests,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Guaranteed guests'),
-              validator: (value) {
-                final count = int.tryParse(value?.trim() ?? '');
-                return count == null || count < 0 ? 'Enter zero or more guests.' : null;
-              },
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _manager,
-              decoration: const InputDecoration(labelText: 'Event manager'),
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _notes,
-              minLines: 2,
-              maxLines: 5,
-              decoration: const InputDecoration(labelText: 'Operational notes'),
-            ),
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: _saving ? null : _save,
-              child: Text(_saving ? 'Creating…' : 'Create event'),
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              Text(_error!, style: const TextStyle(color: AppColors.blocked)),
             ],
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }

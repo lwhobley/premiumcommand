@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/icons/phosphor.dart';
+
 import '../../../core/errors/app_failure.dart';
 import '../../../core/text/initials.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/broadsheet.dart';
 import '../../auth/application/session_controller.dart';
 import '../../planning/application/planning_providers.dart';
 import '../application/chat_providers.dart';
@@ -18,17 +21,16 @@ const chatEmoji = [
   '💪', '🎉', '🔥', '✅', '⚠️', '❤️', '🥂', '🍾', '🍰', '☕', //
 ];
 
-const _sentBubble = Color(0xFFDCF8C6);
-const _tickGrey = Color(0xFF8696A0);
-const _readBlue = Color(0xFF34B7F1);
-const _threadBackground = Color(0xFFEFEAE2);
-
 /// One conversation: messages, receipts, and the message box. Full width on phones, beside the
 /// list on wide screens.
 class ChatThreadView extends ConsumerStatefulWidget {
-  const ChatThreadView({super.key, required this.conversationId});
+  const ChatThreadView({super.key, required this.conversationId, this.back});
 
   final String conversationId;
+
+  /// On its own screen, the thread opens with a back link and the full screen header.
+  /// Without one (beside the list), it shows a compact header.
+  final BackLink? back;
 
   @override
   ConsumerState<ChatThreadView> createState() => _ChatThreadViewState();
@@ -194,61 +196,89 @@ class _ChatThreadViewState extends ConsumerState<ChatThreadView> {
     final isOnline = otherId != null && online.contains(otherId);
     final title = conversation?.title ?? 'Conversation';
 
+    final presence = isGroup
+        ? '${conversation?.memberCount ?? participants.length} members'
+        : (isOnline ? 'Online' : 'Offline');
+    final groupAdd = isGroup
+        ? _GroupAddButton(
+            conversationId: widget.conversationId,
+            participants: participants,
+            venueId: session.venueId,
+          )
+        : null;
+
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Material(
-          color: AppColors.surface,
-          child: ListTile(
-            leading: CircleAvatar(child: Text(initialsFor(title))),
-            title: Text(
-              title,
-              style: const TextStyle(fontWeight: FontWeight.w600),
+        if (widget.back != null)
+          ScreenHeader(
+            back: widget.back,
+            kicker: 'Chat',
+            title: title,
+            subtitle: presence,
+            actions: [?groupAdd],
+          )
+        else
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpace.screen,
+              AppSpace.s,
+              AppSpace.screen - 10,
+              AppSpace.s,
             ),
-            subtitle: Text(
-              isGroup
-                  ? '${conversation?.memberCount ?? participants.length} members'
-                  : (isOnline ? 'Online' : 'Offline'),
-              style: TextStyle(
-                color: isOnline && !isGroup
-                    ? AppColors.ready
-                    : AppColors.charcoalMuted,
-              ),
-            ),
-            trailing: isGroup
-                ? _GroupAddButton(
-                    conversationId: widget.conversationId,
-                    participants: participants,
-                    venueId: session.venueId,
-                  )
-                : null,
-          ),
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: Container(
-            color: _threadBackground,
-            child: messages.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(userMessageFor(error)),
+            child: Row(
+              children: [
+                CircleAvatar(child: Text(initialsFor(title))),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppText.rowTitle,
+                      ),
+                      Text(
+                        presence,
+                        style: AppText.meta.copyWith(
+                          color: isOnline && !isGroup
+                              ? AppColors.accent700
+                              : AppColors.muted,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+                ?groupAdd,
+              ],
+            ),
+          ),
+        Expanded(
+          child: ColoredBox(
+            color: AppColors.background,
+            child: messages.when(
+              loading: () => const Align(
+                alignment: Alignment.topCenter,
+                child: LinearProgressIndicator(),
+              ),
+              error: (error, _) => Padding(
+                padding: const EdgeInsets.all(AppSpace.screen),
+                child: Text(userMessageFor(error), style: AppText.body),
               ),
               data: (latest) {
                 final items = _merge(latest);
                 if (items.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      'No messages yet. Say hello.',
-                      style: TextStyle(color: AppColors.charcoalMuted),
-                    ),
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: AppSpace.screen),
+                    child: EmptyNote('No messages yet. Say hello.'),
                   );
                 }
                 return ListView.builder(
                   reverse: true,
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
+                    horizontal: AppSpace.screen,
                     vertical: 10,
                   ),
                   itemCount: items.length + 1,
@@ -256,10 +286,17 @@ class _ChatThreadViewState extends ConsumerState<ChatThreadView> {
                     if (index == items.length) {
                       if (!_hasOlder) return const SizedBox.shrink();
                       return Padding(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                         child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            if (_historyError != null) Text(_historyError!),
+                            if (_historyError != null)
+                              Text(
+                                _historyError!,
+                                style: const TextStyle(
+                                  color: AppColors.accent2700,
+                                ),
+                              ),
                             TextButton(
                               onPressed: _loadingOlder
                                   ? null
@@ -285,6 +322,7 @@ class _ChatThreadViewState extends ConsumerState<ChatThreadView> {
                         );
                     final mine = message.senderId == session.userId;
                     return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         if (startsDay) _DayChip(day: message.createdAt),
                         _Bubble(
@@ -329,16 +367,21 @@ class _ChatThreadViewState extends ConsumerState<ChatThreadView> {
         SafeArea(
           top: false,
           child: Container(
-            color: AppColors.surface,
-            padding: const EdgeInsets.fromLTRB(4, 6, 8, 6),
+            color: AppColors.background,
+            padding: const EdgeInsets.fromLTRB(
+              AppSpace.screen - 12,
+              8,
+              AppSpace.screen,
+              8,
+            ),
             child: Row(
               children: [
                 IconButton(
                   tooltip: _showEmoji ? 'Hide emoji' : 'Emoji',
-                  icon: Icon(
+                  icon: PhosphorIcon(
                     _showEmoji
-                        ? Icons.keyboard_outlined
-                        : Icons.emoji_emotions_outlined,
+                        ? PhosphorIconsDuotone.keyboard
+                        : PhosphorIconsDuotone.smiley,
                   ),
                   onPressed: () => setState(() => _showEmoji = !_showEmoji),
                 ),
@@ -354,9 +397,6 @@ class _ChatThreadViewState extends ConsumerState<ChatThreadView> {
                       hintText: 'Message',
                       counterText: '',
                       isDense: true,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.all(Radius.circular(22)),
-                      ),
                       contentPadding: EdgeInsets.symmetric(
                         horizontal: 14,
                         vertical: 10,
@@ -369,9 +409,18 @@ class _ChatThreadViewState extends ConsumerState<ChatThreadView> {
                     onSubmitted: (_) => _send(),
                   ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 8),
                 IconButton.filled(
                   tooltip: 'Send',
+                  // The theme gives icon buttons accent700 icons; on the accent fill the
+                  // icon is paper-colored.
+                  style: ButtonStyle(
+                    foregroundColor: WidgetStateProperty.resolveWith(
+                      (states) => states.contains(WidgetState.disabled)
+                          ? AppColors.ink(0.45)
+                          : AppColors.background,
+                    ),
+                  ),
                   onPressed: _input.text.trim().isEmpty || _sending
                       ? null
                       : _send,
@@ -379,9 +428,14 @@ class _ChatThreadViewState extends ConsumerState<ChatThreadView> {
                       ? const SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.background,
+                          ),
                         )
-                      : const Icon(Icons.send),
+                      : const PhosphorIcon(
+                          PhosphorIconsDuotone.paperPlaneRight,
+                        ),
                 ),
               ],
             ),
@@ -421,23 +475,11 @@ class _Bubble extends StatelessWidget {
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxWidth),
         child: Container(
-          margin: const EdgeInsets.symmetric(vertical: 2),
-          padding: const EdgeInsets.fromLTRB(10, 6, 10, 4),
+          margin: const EdgeInsets.symmetric(vertical: 3),
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
           decoration: BoxDecoration(
-            color: mine ? _sentBubble : Colors.white,
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(10),
-              topRight: const Radius.circular(10),
-              bottomLeft: Radius.circular(mine ? 10 : 2),
-              bottomRight: Radius.circular(mine ? 2 : 10),
-            ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x14000000),
-                blurRadius: 2,
-                offset: Offset(0, 1),
-              ),
-            ],
+            color: mine ? AppColors.accent200 : AppColors.surface,
+            borderRadius: AppRadius.all,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -447,8 +489,8 @@ class _Bubble extends StatelessWidget {
                 Text(
                   senderName,
                   style: const TextStyle(
-                    color: AppColors.brass,
-                    fontSize: 12,
+                    color: AppColors.muted,
+                    fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -458,17 +500,17 @@ class _Bubble extends StatelessWidget {
                 children: [
                   Padding(
                     padding: const EdgeInsets.only(right: 8, bottom: 2),
-                    child: Text(
-                      message.body,
-                      style: const TextStyle(fontSize: 15),
-                    ),
+                    child: Text(message.body, style: AppText.body),
                   ),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         DateFormat.jm().format(message.createdAt),
-                        style: const TextStyle(fontSize: 11, color: _tickGrey),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.muted,
+                        ),
                       ),
                       if (receipt != null) ...[
                         const SizedBox(width: 3),
@@ -493,8 +535,12 @@ class _Ticks extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final icon = state == ReceiptState.sent ? Icons.done : Icons.done_all;
-    final color = state == ReceiptState.read ? _readBlue : _tickGrey;
+    final icon = state == ReceiptState.sent
+        ? PhosphorIconsDuotone.check
+        : PhosphorIconsDuotone.checks;
+    final color = state == ReceiptState.read
+        ? AppColors.accent700
+        : AppColors.neutral600;
     final label = switch (state) {
       ReceiptState.sent => 'Sent',
       ReceiptState.delivered => 'Delivered',
@@ -502,7 +548,7 @@ class _Ticks extends StatelessWidget {
     };
     return Tooltip(
       message: label,
-      child: Icon(icon, size: 15, color: color),
+      child: PhosphorIcon(icon, size: 15, color: color),
     );
   }
 }
@@ -528,23 +574,8 @@ class _DayChip extends StatelessWidget {
         ? 'Yesterday'
         : DateFormat.yMMMd().format(day);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            text,
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppColors.charcoalMuted,
-            ),
-          ),
-        ),
-      ),
+      padding: const EdgeInsets.only(top: 14, bottom: 6),
+      child: Kicker(text, color: AppColors.muted),
     );
   }
 }
@@ -568,7 +599,7 @@ class _GroupAddButton extends ConsumerWidget {
     if (!isAdmin) return const SizedBox.shrink();
     return IconButton(
       tooltip: 'Add people',
-      icon: const Icon(Icons.person_add_alt_1_outlined),
+      icon: const PhosphorIcon(PhosphorIconsDuotone.userPlus),
       onPressed: () async {
         final messenger = ScaffoldMessenger.of(context);
         final members = await ref.read(venueMembersProvider(venueId).future);

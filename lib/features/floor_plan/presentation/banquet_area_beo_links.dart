@@ -3,8 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/icons/phosphor.dart';
+
 import '../../../core/theme/app_theme.dart';
 import '../../../core/time/venue_time.dart';
+import '../../../core/widgets/broadsheet.dart';
 import '../../auth/application/session_controller.dart';
 import '../../events/application/event_providers.dart';
 import '../../events/domain/ops_event.dart';
@@ -34,7 +37,7 @@ class BanquetAreaBeoLinksButton extends StatelessWidget {
       venueId: venueId,
       canManage: canManage,
     ),
-    icon: const Icon(Icons.description_outlined),
+    icon: const PhosphorIcon(PhosphorIconsDuotone.fileText),
     label: Text(label),
   );
 }
@@ -85,10 +88,10 @@ class _BanquetAreaBeoLinksPanelState
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.fromLTRB(
-          20,
-          20,
-          20,
-          20 + MediaQuery.viewInsetsOf(context).bottom,
+          AppSpace.screen,
+          AppSpace.l,
+          AppSpace.screen,
+          AppSpace.l + MediaQuery.viewInsetsOf(context).bottom,
         ),
         child: SizedBox(
           height: MediaQuery.sizeOf(context).height * 0.7,
@@ -97,12 +100,12 @@ class _BanquetAreaBeoLinksPanelState
             children: [
               Text(
                 '${widget.area.name} · Event BEOs',
-                style: Theme.of(context).textTheme.titleLarge,
+                style: AppText.sectionHeading,
               ),
               const SizedBox(height: 4),
               const Text(
                 'Each event has one BEO document. Open it to review the current order or preorder instructions.',
-                style: TextStyle(color: AppColors.charcoalMuted),
+                style: AppText.meta,
               ),
               if (widget.canManage) ...[
                 const SizedBox(height: 16),
@@ -128,7 +131,7 @@ class _BanquetAreaBeoLinksPanelState
                       if (available.isEmpty) {
                         return const Text(
                           'All available events are linked to this area.',
-                          style: TextStyle(color: AppColors.charcoalMuted),
+                          style: AppText.meta,
                         );
                       }
                       final selected =
@@ -182,51 +185,48 @@ class _BanquetAreaBeoLinksPanelState
                 child: links.when(
                   loading: () =>
                       const Center(child: CircularProgressIndicator()),
-                  error: (error, _) => Center(child: Text('$error')),
+                  error: (error, _) => Text('$error'),
                   data: (items) => items.isEmpty
-                      ? Center(
-                          child: Text(
-                            widget.canManage
-                                ? 'No events are linked yet. Add an event above to connect its BEO to this area.'
-                                : 'No event BEOs are linked to this area yet.',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: AppColors.charcoalMuted,
-                            ),
-                          ),
+                      ? EmptyNote(
+                          widget.canManage
+                              ? 'No events are linked yet. Add an event above to connect its BEO to this area.'
+                              : 'No event BEOs are linked to this area yet.',
                         )
                       : ListView.builder(
                           itemCount: items.length,
                           itemBuilder: (context, index) {
                             final link = items[index];
-                            return Card(
-                              child: ListTile(
-                                leading: const Icon(Icons.description_outlined),
-                                title: Text(link.beoTitle ?? link.eventName),
-                                subtitle: Text(
+                            return OpenRow(
+                              leading: const PhosphorIcon(
+                                PhosphorIconsDuotone.fileText,
+                              ),
+                              title: link.beoTitle ?? link.eventName,
+                              meta:
                                   '${DateFormat('EEE, MMM d · h:mm a').format(atVenue(link.serviceStart, zone))} $zone · '
                                   '${link.beoId == null ? 'No BEO created yet' : 'Event BEO available'}',
-                                ),
-                                trailing: Wrap(
-                                  spacing: 0,
-                                  children: [
-                                    IconButton(
-                                      tooltip: link.beoId == null
-                                          ? 'Create event BEO'
-                                          : 'Open event BEO',
-                                      onPressed: () => _openBeo(link.eventId),
-                                      icon: const Icon(Icons.open_in_new),
+                              trailing: Wrap(
+                                spacing: 0,
+                                children: [
+                                  IconButton(
+                                    tooltip: link.beoId == null
+                                        ? 'Create event BEO'
+                                        : 'Open event BEO',
+                                    onPressed: () => _openBeo(link.eventId),
+                                    icon: const PhosphorIcon(
+                                      PhosphorIconsDuotone.arrowSquareOut,
                                     ),
-                                    if (widget.canManage)
-                                      IconButton(
-                                        tooltip: 'Unlink event',
-                                        onPressed: () => _unlink(link.eventId),
-                                        icon: const Icon(Icons.link_off),
+                                  ),
+                                  if (widget.canManage)
+                                    IconButton(
+                                      tooltip: 'Unlink event',
+                                      onPressed: () => _unlink(link.eventId),
+                                      icon: const PhosphorIcon(
+                                        PhosphorIconsDuotone.linkBreak,
                                       ),
-                                  ],
-                                ),
-                                onTap: () => _openBeo(link.eventId),
+                                    ),
+                                ],
                               ),
+                              onTap: () => _openBeo(link.eventId),
                             );
                           },
                         ),

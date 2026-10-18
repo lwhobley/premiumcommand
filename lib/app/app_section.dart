@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../core/icons/phosphor.dart';
+
 import '../core/permissions/app_permission.dart';
 import '../features/command_center/command_center_screen.dart';
 import '../features/admin/presentation/admin_screen.dart';
@@ -26,105 +28,105 @@ enum AppSection {
   commandCenter(
     path: '/command',
     label: 'Command Center',
-    icon: Icons.dashboard_outlined,
+    icon: PhosphorIconsDuotone.squaresFour,
     permission: AppPermission.viewOperations,
     phase: 1,
   ),
   eventCalendar(
     path: '/calendar',
     label: 'Event Calendar',
-    icon: Icons.calendar_month_outlined,
+    icon: PhosphorIconsDuotone.calendarBlank,
     permission: AppPermission.viewOperations,
     phase: 1,
   ),
   eventWorkspace(
     path: '/events',
     label: 'Event Workspace',
-    icon: Icons.event_note_outlined,
+    icon: PhosphorIconsDuotone.calendarCheck,
     permission: AppPermission.viewOperations,
     phase: 1,
   ),
   beoManagement(
     path: '/beo',
     label: 'BEO Management',
-    icon: Icons.description_outlined,
+    icon: PhosphorIconsDuotone.fileText,
     permission: AppPermission.viewOperations,
     phase: 2,
   ),
   premiumSpaces(
     path: '/spaces',
     label: 'Premium Spaces',
-    icon: Icons.meeting_room_outlined,
+    icon: PhosphorIconsDuotone.door,
     permission: AppPermission.viewOperations,
     phase: 2,
   ),
   sales(
     path: '/sales',
     label: 'Sales',
-    icon: Icons.sell_outlined,
+    icon: PhosphorIconsDuotone.tag,
     permission: AppPermission.viewOperations,
     phase: 4,
   ),
   banquetsCulinary(
     path: '/culinary',
     label: 'Banquets & Culinary',
-    icon: Icons.restaurant_outlined,
+    icon: PhosphorIconsDuotone.forkKnife,
     permission: AppPermission.viewCulinary,
     phase: 3,
   ),
   staffDeployment(
     path: '/staff',
     label: 'Staff Deployment',
-    icon: Icons.groups_outlined,
+    icon: PhosphorIconsDuotone.usersThree,
     permission: AppPermission.viewDeployment,
     phase: 2,
   ),
   liveDispatch(
     path: '/dispatch',
     label: 'Live Service Dispatch',
-    icon: Icons.bolt_outlined,
+    icon: PhosphorIconsDuotone.lightning,
     permission: AppPermission.manageRequests,
     phase: 2,
   ),
   myShift(
     path: '/my-shift',
     label: 'My Shift',
-    icon: Icons.badge_outlined,
+    icon: PhosphorIconsDuotone.identificationBadge,
     permission: null,
     phase: 2,
   ),
   inspections(
     path: '/inspections',
     label: 'Inspections & Checklists',
-    icon: Icons.checklist_outlined,
+    icon: PhosphorIconsDuotone.listChecks,
     permission: AppPermission.runInspections,
     phase: 3,
   ),
   communications(
     path: '/communications',
     label: 'Communications',
-    icon: Icons.campaign_outlined,
+    icon: PhosphorIconsDuotone.megaphone,
     permission: null,
     phase: 3,
   ),
   chat(
     path: '/chat',
     label: 'Chat',
-    icon: Icons.chat_bubble_outline,
+    icon: PhosphorIconsDuotone.chatCircleText,
     permission: null,
     phase: 3,
   ),
   closeout(
     path: '/closeout',
     label: 'Event Closeout & Reports',
-    icon: Icons.assignment_turned_in_outlined,
+    icon: PhosphorIconsDuotone.clipboardText,
     permission: AppPermission.viewReports,
     phase: 3,
   ),
   meetingNotes(
     path: '/meeting-notes',
     label: 'Meeting Notes',
-    icon: Icons.edit_note_outlined,
+    icon: PhosphorIconsDuotone.notePencil,
     // Administrators only. The assistant re-checks this server-side.
     permission: AppPermission.manageConfiguration,
     phase: 4,
@@ -132,21 +134,21 @@ enum AppSection {
   administration(
     path: '/admin',
     label: 'Administration & Configuration',
-    icon: Icons.settings_outlined,
+    icon: PhosphorIconsDuotone.gear,
     permission: AppPermission.manageConfiguration,
     phase: 4,
   ),
   staffManagement(
     path: '/staff',
     label: 'Staff Management',
-    icon: Icons.badge_outlined,
+    icon: PhosphorIconsDuotone.userList,
     permission: AppPermission.manageConfiguration,
     phase: 4,
   ),
   floorPlanStudio(
     path: '/floor-plan',
     label: 'Floor Plan Studio',
-    icon: Icons.view_in_ar_outlined,
+    icon: PhosphorIconsDuotone.cube,
     // Anyone with operations access may view plans. Only administrators can edit them,
     // which the studio enforces with its manage_configuration check.
     permission: AppPermission.viewOperations,
@@ -163,7 +165,7 @@ enum AppSection {
 
   final String path;
   final String label;
-  final IconData icon;
+  final PhosphorIconData icon;
   final AppPermission? permission;
   final int phase;
 

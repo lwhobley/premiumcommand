@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/icons/phosphor.dart';
+
 import '../../../core/theme/app_theme.dart';
 import '../domain/sales_package.dart';
 
@@ -145,7 +147,10 @@ class _SalesPackageEditorState extends State<_SalesPackageEditor> {
                 decoration: const InputDecoration(labelText: 'Description'),
               ),
               const SizedBox(height: 16),
-              Text('Pricing', style: Theme.of(context).textTheme.titleSmall),
+              Text(
+                'Pricing',
+                style: AppText.body.copyWith(fontWeight: FontWeight.w600),
+              ),
               const SizedBox(height: 6),
               for (final (index, row) in _rows.indexed)
                 Padding(
@@ -188,14 +193,14 @@ class _SalesPackageEditorState extends State<_SalesPackageEditor> {
                       IconButton(
                         tooltip: 'Remove this price',
                         onPressed: () => _removeRow(index),
-                        icon: const Icon(Icons.close),
+                        icon: const PhosphorIcon(PhosphorIconsDuotone.x),
                       ),
                     ],
                   ),
                 ),
               TextButton.icon(
                 onPressed: () => setState(() => _rows.add(_PriceRowFields())),
-                icon: const Icon(Icons.add),
+                icon: const PhosphorIcon(PhosphorIconsDuotone.plus),
                 label: const Text('Add price'),
               ),
               TextField(
@@ -236,7 +241,10 @@ class _SalesPackageEditorState extends State<_SalesPackageEditor> {
               ),
               if (_error != null) ...[
                 const SizedBox(height: 8),
-                Text(_error!, style: const TextStyle(color: AppColors.blocked)),
+                Text(
+                  _error!,
+                  style: AppText.body.copyWith(color: AppColors.accent2700),
+                ),
               ],
             ],
           ),

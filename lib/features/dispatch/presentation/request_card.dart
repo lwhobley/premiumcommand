@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/icons/phosphor.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/widgets/status_chip.dart';
+import '../../../core/widgets/broadsheet.dart';
+import '../../../core/widgets/tag.dart';
 import '../../events/domain/readiness.dart';
 import '../domain/service_request.dart';
 
@@ -42,58 +44,71 @@ class RequestCard extends StatelessWidget {
     final escalated = request.isEscalated(now, thresholds);
     final age = now.difference(request.createdAt).inMinutes;
     final primary = _primaryAction();
+    final menuItems = _menuItems();
+    final alert = escalated || request.status == RequestStatus.blocked;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: escalated ? AppColors.blocked : AppColors.border,
-          width: escalated ? 1.5 : 1,
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: OpenRow(
+        title: request.category.label,
+        trailing: request.priority == RequestPriority.normal && !escalated
+            ? null
+            : Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  if (request.priority != RequestPriority.normal)
+                    Tag(
+                      request.priority.label,
+                      _priorityTone(request.priority),
+                    ),
+                  if (escalated) const Tag('Escalated', Tone.alert),
+                ],
+              ),
+        below: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Text(request.category.label, style: const TextStyle(fontWeight: FontWeight.w600)),
-                StatusChip(label: request.status.label, color: _statusColor(request.status)),
-                if (request.priority != RequestPriority.normal)
-                  StatusChip(
-                    label: request.priority.label,
-                    color: request.priority == RequestPriority.urgent ? AppColors.blocked : AppColors.attention,
-                  ),
-                if (escalated) const StatusChip(label: 'Escalated', color: AppColors.blocked),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(request.description),
-            const SizedBox(height: 4),
+            Text(request.description, style: AppText.body),
+            const SizedBox(height: 3),
             Text(
               [
+                request.status.label,
                 if (request.location.isNotEmpty) request.location,
-                if (request.assignedDepartment != null) 'For ${_deptLabel(request.assignedDepartment!)}',
+                if (request.assignedDepartment != null)
+                  'For ${_deptLabel(request.assignedDepartment!)}',
                 '${age}m ago',
               ].join(' · '),
-              style: const TextStyle(color: AppColors.charcoalMuted, fontSize: 13),
+              style: AppText.meta.copyWith(
+                color: alert ? AppColors.accent2700 : AppColors.muted,
+              ),
             ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: primary == null
-                      ? const SizedBox.shrink()
-                      : FilledButton.tonal(onPressed: primary.$2, child: Text(primary.$1)),
-                ),
-                if (_hasMenu) _menu(),
-              ],
-            ),
+            if (primary != null || _canBlock || menuItems.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: Wrap(
+                      spacing: 10,
+                      runSpacing: 8,
+                      children: [
+                        if (primary != null)
+                          FilledButton(
+                            onPressed: primary.$2,
+                            child: Text(primary.$1),
+                          ),
+                        if (_canBlock)
+                          OutlinedButton(
+                            onPressed: () =>
+                                onWithReason(RequestStatus.blocked),
+                            child: const Text('Block'),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (menuItems.isNotEmpty) _menu(menuItems),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -102,10 +117,18 @@ class RequestCard extends StatelessWidget {
 
   bool get _hasMenu => request.status.isOpen && (canManage || canWork);
 
+  /// Block is offered as its own button; the database allows it from any open status but new.
+  bool get _canBlock =>
+      _hasMenu &&
+      canWork &&
+      request.status != RequestStatus.blocked &&
+      request.status != RequestStatus.isNew;
+
   /// The single most useful next step for this status, or null if the user may not take it.
   (String, VoidCallback)? _primaryAction() {
     final status = request.status;
-    if ((status == RequestStatus.isNew || status == RequestStatus.blocked) && canManage) {
+    if ((status == RequestStatus.isNew || status == RequestStatus.blocked) &&
+        canManage) {
       return ('Assign', onAssign);
     }
     if (status == RequestStatus.assigned && canWork) {
@@ -120,43 +143,54 @@ class RequestCard extends StatelessWidget {
     return null;
   }
 
-  Widget _menu() {
+  List<PopupMenuEntry<String>> _menuItems() {
+    if (!_hasMenu) return const [];
     final status = request.status;
+    return [
+      // Reassignment: the database allows assign from new, assigned, accepted and blocked.
+      // New and blocked already have the primary Assign button, so the menu covers the rest.
+      if (canManage &&
+          (status == RequestStatus.assigned ||
+              status == RequestStatus.accepted))
+        const PopupMenuItem(
+          value: 'assign',
+          child: Text('Reassign to department'),
+        ),
+      if (canWork &&
+          (status == RequestStatus.isNew ||
+              status == RequestStatus.assigned ||
+              status == RequestStatus.accepted))
+        const PopupMenuItem(
+          value: 'reject',
+          child: Text('Reject (give a reason)'),
+        ),
+      if (canManage)
+        const PopupMenuItem(
+          value: 'cancel',
+          child: Text('Cancel (give a reason)'),
+        ),
+    ];
+  }
+
+  Widget _menu(List<PopupMenuEntry<String>> items) {
     return PopupMenuButton<String>(
       tooltip: 'More actions',
-      icon: const Icon(Icons.more_horiz),
+      icon: const PhosphorIcon(PhosphorIconsDuotone.dotsThree),
       onSelected: (action) {
         if (action == 'assign') {
           onAssign();
-        } else if (action == 'block') {
-          onWithReason(RequestStatus.blocked);
         } else if (action == 'reject') {
           onWithReason(RequestStatus.rejected);
         } else {
           onWithReason(RequestStatus.cancelled);
         }
       },
-      itemBuilder: (_) => [
-        // Reassignment: the database allows assign from new, assigned, accepted and blocked.
-        // New and blocked already have the primary Assign button, so the menu covers the rest.
-        if (canManage && (status == RequestStatus.assigned || status == RequestStatus.accepted))
-          const PopupMenuItem(value: 'assign', child: Text('Reassign to department')),
-        if (canWork && status != RequestStatus.blocked && status != RequestStatus.isNew)
-          const PopupMenuItem(value: 'block', child: Text('Block (give a reason)')),
-        if (canWork && (status == RequestStatus.isNew || status == RequestStatus.assigned || status == RequestStatus.accepted))
-          const PopupMenuItem(value: 'reject', child: Text('Reject (give a reason)')),
-        if (canManage) const PopupMenuItem(value: 'cancel', child: Text('Cancel (give a reason)')),
-      ],
+      itemBuilder: (_) => items,
     );
   }
 
   static String _deptLabel(String code) => Department.fromCode(code).label;
 
-  static Color _statusColor(RequestStatus status) => switch (status) {
-        RequestStatus.isNew => AppColors.attention,
-        RequestStatus.assigned || RequestStatus.accepted || RequestStatus.inProgress => AppColors.inProgress,
-        RequestStatus.blocked => AppColors.blocked,
-        RequestStatus.completed => AppColors.ready,
-        RequestStatus.rejected || RequestStatus.cancelled => AppColors.neutral,
-      };
+  static Tone _priorityTone(RequestPriority priority) =>
+      priority == RequestPriority.urgent ? Tone.alert : Tone.neutral;
 }

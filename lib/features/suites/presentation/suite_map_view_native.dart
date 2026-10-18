@@ -5,6 +5,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import '../../../core/theme/app_theme.dart';
+
 /// The 3D suite map in a WebView, loaded from the bundled page in web/three/.
 /// Tapping a suite calls [onSuiteTap] with its number.
 class SuiteMapView extends StatefulWidget {
@@ -32,7 +34,7 @@ class _SuiteMapViewState extends State<SuiteMapView> {
     if (WebViewPlatform.instance == null) return;
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFFF1EDE4))
+      ..setBackgroundColor(AppColors.background)
       ..addJavaScriptChannel('SuiteMapChannel', onMessageReceived: _onMessage)
       // Only the bundled page may load; never navigate elsewhere.
       ..setNavigationDelegate(
@@ -81,13 +83,14 @@ class _SuiteMapViewState extends State<SuiteMapView> {
     final controller = _controller;
     if (controller == null) {
       return const ColoredBox(
-        color: Color(0xFFF1EDE4),
-        child: Center(
+        color: AppColors.background,
+        child: Align(
+          alignment: Alignment.centerLeft,
           child: Padding(
             padding: EdgeInsets.all(24),
             child: Text(
               'The 3D map is available in the iPhone, Android, and web apps.',
-              textAlign: TextAlign.center,
+              style: AppText.body,
             ),
           ),
         ),

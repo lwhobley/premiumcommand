@@ -11,16 +11,15 @@ class FloorPlan3DView extends StatelessWidget {
     if (sceneData['mode'] != 'banquet_area_schematic') {
       return Container(
         height: 320,
-        alignment: Alignment.center,
+        alignment: Alignment.centerLeft,
         decoration: BoxDecoration(
-          color: AppColors.surfaceMuted,
-          border: Border.all(color: AppColors.border),
-          borderRadius: BorderRadius.circular(8),
+          color: AppColors.surface,
+          borderRadius: AppRadius.all,
         ),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpace.l),
         child: const Text(
           'Interactive measured 3D floor plans are available in the web app.',
-          textAlign: TextAlign.center,
+          style: AppText.body,
         ),
       );
     }
@@ -31,9 +30,8 @@ class FloorPlan3DView extends StatelessWidget {
       height: 320,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
-        border: Border.all(color: AppColors.border),
-        borderRadius: BorderRadius.circular(8),
+        color: AppColors.surface,
+        borderRadius: AppRadius.all,
       ),
       child: InteractiveViewer(
         minScale: 0.8,
@@ -70,9 +68,9 @@ class _BanquetSchematicPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final floorColor = switch (kind) {
-      'arena_floor' => const Color(0xFFAAA8A3),
-      'premium_lounge' => const Color(0xFFB8A88B),
-      _ => const Color(0xFFC4B9A5),
+      'arena_floor' => AppColors.neutral400,
+      'premium_lounge' => AppColors.accent300,
+      _ => AppColors.neutral300,
     };
     final blocks = combined ? 1 : count;
     final gap = size.width * 0.025;
@@ -98,7 +96,7 @@ class _BanquetSchematicPainter extends CustomPainter {
         ..close();
       canvas.drawPath(
         side,
-        Paint()..color = Color.lerp(floorColor, Colors.black, 0.2)!,
+        Paint()..color = Color.lerp(floorColor, AppColors.text, 0.2)!,
       );
       final topFace = Path()
         ..moveTo(a.dx, a.dy)
@@ -112,7 +110,7 @@ class _BanquetSchematicPainter extends CustomPainter {
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.5
-          ..color = const Color(0xFF665B4B),
+          ..color = AppColors.neutral700,
       );
     }
   }

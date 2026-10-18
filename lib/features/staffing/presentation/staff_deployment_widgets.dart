@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_theme.dart';
-import '../../../core/widgets/status_chip.dart';
+import '../../../core/widgets/broadsheet.dart';
+import '../../../core/widgets/tag.dart';
 import '../../events/domain/readiness.dart';
 import '../../planning/application/planning_providers.dart';
 import '../../planning/presentation/planning_widgets.dart';
@@ -12,11 +13,11 @@ import '../../staff/domain/staff_availability.dart';
 import '../../suites/domain/suite.dart';
 import '../domain/staffing.dart';
 
-/// Colors for availability in the directory.
-Color availabilityColor(AvailabilityStatus status) => switch (status) {
-  AvailabilityStatus.available => AppColors.ready,
-  AvailabilityStatus.limited => AppColors.attention,
-  AvailabilityStatus.unavailable => AppColors.blocked,
+/// Tones for availability in the directory.
+Tone availabilityTone(AvailabilityStatus status) => switch (status) {
+  AvailabilityStatus.available => Tone.accent,
+  AvailabilityStatus.limited => Tone.neutral,
+  AvailabilityStatus.unavailable => Tone.alert,
 };
 
 /// Everyone in the venue's staff directory, with availability right now and, when an event is
@@ -43,61 +44,44 @@ class StaffDirectoryPanel extends ConsumerWidget {
         : ref.watch(staffProvider(eventId!)).value ?? const <StaffPosition>[];
     final now = DateTime.now();
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Directory', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 4),
-          Text(
-            canManage ? 'Tap a person to record availability.' : 'Availability and current assignments. Only managers can change them.',
-            style: const TextStyle(
-              color: AppColors.charcoalMuted,
-              fontSize: 13,
-            ),
-          ),
-          const SizedBox(height: 8),
-          directory.when(
-            loading: () => const LinearProgressIndicator(),
-            error: (error, _) => Text(error.toString()),
-            data: (people) {
-              if (people.isEmpty) {
-                return const Text(
-                  'No staff accounts yet.',
-                  style: TextStyle(color: AppColors.charcoalMuted),
-                );
-              }
-              return Column(
-                children: [
-                  for (final person in people)
-                    Card(
-                      margin: const EdgeInsets.only(bottom: 6),
-                      child: ListTile(
-                        leading: CircleAvatar(child: Text(person.initials)),
-                        title: Text(person.fullName),
-                        subtitle: Text(_subtitle(person, positions)),
-                        trailing: StatusChip(
-                          label: availabilityAt(
-                            availability,
-                            person.userId,
-                            now,
-                          ).label,
-                          color: availabilityColor(
-                            availabilityAt(availability, person.userId, now),
-                          ),
-                        ),
-                        onTap: canManage && person.active
-                            ? () => _recordAvailability(context, ref, person)
-                            : null,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionHeading('Directory'),
+        Text(
+          canManage ? 'Tap a person to record availability.' : 'Availability and current assignments. Only managers can change them.',
+          style: AppText.meta,
+        ),
+        const SizedBox(height: 8),
+        directory.when(
+          loading: () => const LinearProgressIndicator(),
+          error: (error, _) => Text(error.toString()),
+          data: (people) {
+            if (people.isEmpty) {
+              return const EmptyNote('No staff accounts yet.');
+            }
+            return Column(
+              children: [
+                for (final person in people)
+                  OpenRow(
+                    leading: CircleAvatar(child: Text(person.initials)),
+                    title: person.fullName,
+                    meta: _subtitle(person, positions),
+                    trailing: Tag(
+                      availabilityAt(availability, person.userId, now).label,
+                      availabilityTone(
+                        availabilityAt(availability, person.userId, now),
                       ),
                     ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
+                    onTap: canManage && person.active
+                        ? () => _recordAvailability(context, ref, person)
+                        : null,
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
     );
   }
 
@@ -272,7 +256,10 @@ class _AvailabilityDialogState extends State<_AvailabilityDialog> {
               decoration: const InputDecoration(labelText: 'Note (optional)'),
             ),
             if (_error != null)
-              Text(_error!, style: const TextStyle(color: AppColors.blocked)),
+              Text(
+                _error!,
+                style: const TextStyle(color: AppColors.accent2700),
+              ),
           ],
         ),
       ),
@@ -374,9 +361,16 @@ class _PlaceDialogState extends State<_PlaceDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SegmentedButton<bool>(
+              showSelectedIcon: false,
               segments: const [
-                ButtonSegment(value: true, label: Text('Premium space')),
-                ButtonSegment(value: false, label: Text('Other area')),
+                ButtonSegment(
+                  value: true,
+                  label: Text('Premium space', softWrap: false, maxLines: 1),
+                ),
+                ButtonSegment(
+                  value: false,
+                  label: Text('Other area', softWrap: false, maxLines: 1),
+                ),
               ],
               selected: {_premium},
               onSelectionChanged: (s) => setState(() => _premium = s.first),
@@ -386,7 +380,7 @@ class _PlaceDialogState extends State<_PlaceDialog> {
               widget.premiumSpaces.isEmpty
                   ? const Text(
                       'No premium spaces are assigned to this event yet. Add one under Premium Spaces first.',
-                      style: TextStyle(color: AppColors.charcoalMuted),
+                      style: TextStyle(color: AppColors.muted),
                     )
                   : DropdownButtonFormField<String>(
                       initialValue: _suiteId,

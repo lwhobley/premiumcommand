@@ -2,8 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/icons/phosphor.dart';
+
 import '../core/theme/app_theme.dart';
 import '../features/auth/application/session_controller.dart';
+import '../features/dispatch/application/dispatch_providers.dart';
+import '../features/events/application/event_providers.dart';
+import '../features/events/domain/ops_event.dart';
 import '../features/sync/presentation/sync_banner.dart';
 import 'app_section.dart';
 
@@ -43,7 +48,6 @@ class ShellScaffold extends ConsumerWidget {
                   location: location,
                   venueName: session.venueName,
                 ),
-                const VerticalDivider(width: 1),
                 Expanded(
                   child: Column(
                     children: [
@@ -66,29 +70,63 @@ class ShellScaffold extends ConsumerWidget {
               Expanded(child: child),
             ],
           ),
-          bottomNavigationBar: NavigationBar(
-            selectedIndex: selected < 0 ? primary.length : selected,
-            onDestinationSelected: (index) {
-              if (index == primary.length) {
-                context.go('/menu');
-              } else {
-                context.go(primary[index].path);
-              }
-            },
-            destinations: [
-              for (final section in primary)
-                NavigationDestination(
-                  icon: Icon(section.icon),
-                  label: section.label.split(' ').first,
+          // The hairline above the bar is the one rule the layout allows.
+          bottomNavigationBar: DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: AppColors.ink(0.12))),
+            ),
+            child: NavigationBar(
+              selectedIndex: selected < 0 ? primary.length : selected,
+              onDestinationSelected: (index) {
+                if (index == primary.length) {
+                  context.go('/menu');
+                } else {
+                  context.go(primary[index].path);
+                }
+              },
+              destinations: [
+                for (final section in primary)
+                  NavigationDestination(
+                    icon: section == AppSection.liveDispatch
+                        ? _DispatchIcon(section.icon)
+                        : PhosphorIcon(section.icon),
+                    label: section.label.split(' ').first,
+                  ),
+                const NavigationDestination(
+                  icon: PhosphorIcon(PhosphorIconsDuotone.dotsThree),
+                  label: 'More',
                 ),
-              const NavigationDestination(
-                icon: Icon(Icons.more_horiz),
-                label: 'More',
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
+    );
+  }
+}
+
+/// The Dispatch tab icon with a magenta count of escalated requests for events in service.
+class _DispatchIcon extends ConsumerWidget {
+  const _DispatchIcon(this.icon);
+
+  final PhosphorIconData icon;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final events = ref.watch(eventSnapshotsProvider).value ?? const [];
+    final thresholds = ref.watch(escalationThresholdsProvider).value;
+    final now = DateTime.now();
+    var escalated = 0;
+    for (final snapshot in events) {
+      if (snapshot.event.status != EventStatus.inService) continue;
+      final requests =
+          ref.watch(eventRequestsProvider(snapshot.event.id)).value ?? const [];
+      escalated += requests.where((r) => r.isEscalated(now, thresholds)).length;
+    }
+    return Badge(
+      isLabelVisible: escalated > 0,
+      label: Text('$escalated'),
+      child: PhosphorIcon(icon),
     );
   }
 }
@@ -107,37 +145,37 @@ class _Sidebar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(sessionProvider);
-    // Material gives the list tiles an ink ancestor; a plain coloured Container would hide their splashes.
+    // Material gives the rows an ink ancestor; a plain colored Container would hide their splashes.
     return SizedBox(
       width: 240,
       child: Material(
-        color: AppColors.surface,
+        color: AppColors.background,
         child: SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+                padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    const Text(
                       'CUTX Premium Command',
-                      style: Theme.of(context).textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        fontSize: 20,
+                        height: 1.15,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.2,
+                      ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      venueName,
-                      style: Theme.of(context).textTheme.bodySmall
-                          ?.copyWith(color: AppColors.charcoalMuted),
-                    ),
+                    Text(venueName, style: AppText.meta),
                   ],
                 ),
               ),
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
                   children: [
                     for (final section in sections)
                       _SidebarItem(
@@ -147,21 +185,20 @@ class _Sidebar extends ConsumerWidget {
                   ],
                 ),
               ),
-              const Divider(height: 1),
               Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.fromLTRB(20, 12, 10, 12),
                 child: Row(
                   children: [
                     Expanded(
                       child: Text(
                         session?.displayName ?? '',
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall,
+                        style: AppText.meta,
                       ),
                     ),
                     IconButton(
                       tooltip: 'Sign out',
-                      icon: const Icon(Icons.logout),
+                      icon: const PhosphorIcon(PhosphorIconsDuotone.signOut),
                       onPressed: () =>
                           ref.read(sessionProvider.notifier).signOut(),
                     ),
@@ -184,15 +221,45 @@ class _SidebarItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      dense: true,
-      selected: selected,
-      selectedTileColor: AppColors.brassSoft,
-      selectedColor: AppColors.charcoal,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      leading: Icon(section.icon, size: 20),
-      title: Text(section.label, style: const TextStyle(fontSize: 14)),
-      onTap: () => context.go(section.path),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Material(
+        color: selected ? AppColors.accent100 : Colors.transparent,
+        borderRadius: AppRadius.all,
+        child: InkWell(
+          borderRadius: AppRadius.all,
+          hoverColor: AppColors.ink(0.05),
+          onTap: () => context.go(section.path),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: AppSpace.minTap),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: Row(
+                children: [
+                  PhosphorIcon(
+                    section.icon,
+                    size: 20,
+                    color: selected ? AppColors.accent700 : AppColors.text,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      section.label,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: selected
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                        color: AppColors.text,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

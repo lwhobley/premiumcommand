@@ -7,9 +7,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/errors/app_failure.dart';
+import '../../../core/icons/phosphor.dart';
 import '../../../core/permissions/app_permission.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/widgets/status_chip.dart';
+import '../../../core/widgets/broadsheet.dart';
+import '../../../core/widgets/tag.dart';
 import '../../auth/application/session_controller.dart';
 import '../application/staff_providers.dart';
 import '../domain/staff_profile.dart';
@@ -28,28 +30,34 @@ class StaffProfileScreen extends ConsumerWidget {
     if (session == null) return const SizedBox.shrink();
     final staff = ref.watch(staffListProvider(session.venueId));
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Staff profile')),
-      body: staff.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => _Note(text: userMessageFor(error)),
+    return PageScaffold(
+      kicker: 'Staff',
+      title: 'Staff profile',
+      back: profileId == null ? null : const BackLink(),
+      children: staff.when(
+        loading: () => const [LinearProgressIndicator()],
+        error: (error, _) => [EmptyNote(userMessageFor(error))],
         data: (all) {
           final StaffProfile? profile = profileId == null
               ? all.where((p) => p.userId == session.userId).firstOrNull
               : all.where((p) => p.id == profileId).firstOrNull;
           if (profile == null) {
-            return _Note(
-              text: profileId == null
-                  ? 'Your account has no staff profile. Contact your administrator.'
-                  : 'That staff profile was not found or you cannot view it.',
-            );
+            return [
+              EmptyNote(
+                profileId == null
+                    ? 'Your account has no staff profile. Contact your administrator.'
+                    : 'That staff profile was not found or you cannot view it.',
+              ),
+            ];
           }
           final canManage = session.can(AppPermission.manageConfiguration);
-          return _ProfileView(
-            profile: profile,
-            canManage: canManage,
-            isSelf: profile.userId == session.userId,
-          );
+          return [
+            _ProfileView(
+              profile: profile,
+              canManage: canManage,
+              isSelf: profile.userId == session.userId,
+            ),
+          ];
         },
       ),
     );
@@ -192,7 +200,7 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
           ),
           FilledButton(
             style: destructive
-                ? FilledButton.styleFrom(backgroundColor: AppColors.blocked)
+                ? FilledButton.styleFrom(backgroundColor: AppColors.accent2700)
                 : null,
             onPressed: () => Navigator.of(context).pop(true),
             child: Text(action),
@@ -211,38 +219,39 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
         : ref.watch(staffPhotoUrlProvider(photoPath));
     final dateFormat = DateFormat.yMMMd();
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Center(
-          child: Column(
-            children: [
-              CircleAvatar(
-                radius: 48,
-                backgroundImage: photo?.hasValue == true
-                    ? NetworkImage(photo!.value!)
-                    : null,
-                child: photo?.hasValue == true
-                    ? null
-                    : Text(
-                        profile.initials,
-                        style: const TextStyle(fontSize: 28),
-                      ),
+        Row(
+          children: [
+            CircleAvatar(
+              radius: 48,
+              backgroundImage: photo?.hasValue == true
+                  ? NetworkImage(photo!.value!)
+                  : null,
+              child: photo?.hasValue == true
+                  ? null
+                  : Text(
+                      profile.initials,
+                      style: const TextStyle(fontSize: 28),
+                    ),
+            ),
+            const SizedBox(width: AppSpace.l),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(profile.fullName, style: AppText.sectionHeading),
+                  const SizedBox(height: 6),
+                  Tag(
+                    profile.status.label,
+                    profile.isActive ? Tone.accent : Tone.neutral,
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              Text(
-                profile.fullName,
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 6),
-              StatusChip(
-                label: profile.status.label,
-                color: profile.isActive ? AppColors.ready : AppColors.neutral,
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
-        const SizedBox(height: 20),
         _Section(
           title: 'Employee',
           rows: [
@@ -288,61 +297,58 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
           ],
         ),
         if (widget.canManage) ...[
-          const SizedBox(height: 16),
-          Text(
-            'Administrator actions',
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-          const SizedBox(height: 8),
+          const SectionHeading('Administrator actions'),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: 10,
+            runSpacing: 10,
             children: [
-              FilledButton.tonalIcon(
+              FilledButton.icon(
                 onPressed: _busy ? null : _edit,
-                icon: const Icon(Icons.edit_outlined),
+                icon: const PhosphorIcon(PhosphorIconsDuotone.pencilSimple),
                 label: const Text('Edit details'),
               ),
               OutlinedButton.icon(
                 onPressed: _busy ? null : _changePhoto,
-                icon: const Icon(Icons.photo_camera_outlined),
+                icon: const PhosphorIcon(PhosphorIconsDuotone.camera),
                 label: const Text('Change photo'),
               ),
               OutlinedButton.icon(
                 onPressed: _busy ? null : _resetPin,
-                icon: const Icon(Icons.pin_outlined),
+                icon: const PhosphorIcon(PhosphorIconsDuotone.password),
                 label: const Text('Reset PIN'),
               ),
               if (!widget.isSelf) ...[
                 OutlinedButton.icon(
                   onPressed: _busy ? null : () => _setActive(!profile.isActive),
-                  icon: Icon(
-                    profile.isActive ? Icons.block : Icons.check_circle_outline,
+                  icon: PhosphorIcon(
+                    profile.isActive
+                        ? PhosphorIconsDuotone.prohibit
+                        : PhosphorIconsDuotone.checkCircle,
                   ),
                   label: Text(profile.isActive ? 'Deactivate' : 'Reactivate'),
                 ),
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.blocked,
+                    foregroundColor: AppColors.accent2700,
                   ),
                   onPressed: _busy ? null : _remove,
-                  icon: const Icon(Icons.delete_outline),
+                  icon: const PhosphorIcon(PhosphorIconsDuotone.trash),
                   label: const Text('Remove'),
                 ),
               ],
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           const Text(
             'Roles are changed under Administration & Configuration › People.',
-            style: TextStyle(fontSize: 12, color: AppColors.charcoalMuted),
+            style: AppText.meta,
           ),
         ] else
           const Padding(
-            padding: EdgeInsets.only(top: 16),
+            padding: EdgeInsets.only(top: AppSpace.section),
             child: Text(
               'Only administrators can change these details. Ask your administrator if something is wrong.',
-              style: TextStyle(fontSize: 12, color: AppColors.charcoalMuted),
+              style: AppText.meta,
             ),
           ),
         if (_busy)
@@ -363,35 +369,12 @@ class _Section extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(top: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: 8),
-            for (final (label, value) in rows)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: 120,
-                      child: Text(
-                        label,
-                        style: const TextStyle(color: AppColors.charcoalMuted),
-                      ),
-                    ),
-                    Expanded(child: Text(value)),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionHeading(title),
+        FactGrid(facts: rows),
+      ],
     );
   }
 }
@@ -440,14 +423,14 @@ class _PinDialogState extends State<_PinDialog> {
               labelText: 'New PIN (4 digits)',
               suffixIcon: IconButton(
                 tooltip: 'Generate a PIN',
-                icon: const Icon(Icons.autorenew),
+                icon: const PhosphorIcon(PhosphorIconsDuotone.arrowsClockwise),
                 onPressed: () =>
                     setState(() => _pin.text = generatePin(Random.secure())),
               ),
             ),
           ),
           if (_error != null)
-            Text(_error!, style: const TextStyle(color: AppColors.blocked)),
+            Text(_error!, style: const TextStyle(color: AppColors.accent2700)),
         ],
       ),
       actions: [
@@ -457,20 +440,6 @@ class _PinDialogState extends State<_PinDialog> {
         ),
         FilledButton(onPressed: _save, child: const Text('Set PIN')),
       ],
-    );
-  }
-}
-
-class _Note extends StatelessWidget {
-  const _Note({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Center(child: Text(text, textAlign: TextAlign.center)),
     );
   }
 }

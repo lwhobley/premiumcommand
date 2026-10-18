@@ -1,10 +1,14 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/icons/phosphor.dart';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/errors/app_failure.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/broadsheet.dart';
 import '../../auth/application/session_controller.dart';
 import '../../operations/application/operations_providers.dart';
 import '../data/document_import_repository.dart';
@@ -153,55 +157,80 @@ class _DocumentImportScreenState extends ConsumerState<DocumentImportScreen> {
   Widget build(BuildContext context) {
     final result = _result;
     return Scaffold(
-      appBar: AppBar(title: Text('Import ${widget.kind.label} with AI')),
-      body: Column(
-        children: [
-          if (_busy != null)
-            Material(
-              color: AppColors.brassSoft,
-              child: ListTile(
-                dense: true,
-                leading: const SizedBox.square(
-                  dimension: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            if (_busy != null)
+              ColoredBox(
+                color: AppColors.accent100,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpace.screen,
+                    vertical: 12,
+                  ),
+                  child: Row(
+                    children: [
+                      const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(child: Text(_busy!, style: AppText.body)),
+                    ],
+                  ),
                 ),
-                title: Text(_busy!),
+              ),
+            Expanded(
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 760),
+                  child: result == null ? _sourceView() : _reviewView(result),
+                ),
               ),
             ),
-          Expanded(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 760),
-                child: result == null ? _sourceView() : _reviewView(result),
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
+
+  Widget _header() => ScreenHeader(
+    back: const BackLink(label: 'Close'),
+    kicker: 'Document import',
+    title: 'Import ${widget.kind.label} with AI',
+    padded: false,
+  );
 
   Widget _sourceView() {
     final busy = _busy != null;
     final what = widget.kind == ImportKind.beo ? 'BEO' : 'menu';
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpace.screen,
+        0,
+        AppSpace.screen,
+        AppSpace.xxl,
+      ),
       children: [
+        _header(),
         Text(
           widget.kind == ImportKind.beo
               ? 'Upload the BEO or paste its text. The assistant fills in the BEO editor for you to check, and can add its dishes to the event menu.'
               : 'Upload the menu or paste its text. The assistant lists each dish for you to check before it is added to the event menu.',
+          style: AppText.body,
         ),
         const SizedBox(height: 16),
         FilledButton.icon(
           onPressed: busy ? null : _pickFile,
-          icon: const Icon(Icons.upload_file),
+          icon: const PhosphorIcon(PhosphorIconsDuotone.fileArrowUp),
           label: Text('Upload $what (PDF, photo, or text file)'),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         const Text(
           'Up to 10 MB. The file is deleted once it has been read.',
-          style: TextStyle(color: AppColors.charcoalMuted, fontSize: 12),
+          style: AppText.meta,
         ),
         const SizedBox(height: 24),
         TextField(
@@ -213,14 +242,13 @@ class _DocumentImportScreenState extends ConsumerState<DocumentImportScreen> {
           decoration: InputDecoration(
             labelText: 'Or paste the $what',
             alignLabelWithHint: true,
-            border: const OutlineInputBorder(),
           ),
         ),
         Align(
           alignment: Alignment.centerLeft,
           child: OutlinedButton.icon(
             onPressed: busy ? null : _readText,
-            icon: const Icon(Icons.auto_awesome),
+            icon: const PhosphorIcon(PhosphorIconsDuotone.sparkle),
             label: const Text('Read pasted text'),
           ),
         ),
@@ -229,36 +257,51 @@ class _DocumentImportScreenState extends ConsumerState<DocumentImportScreen> {
   }
 
   Widget _reviewView(ImportResult result) {
-    final theme = Theme.of(context).textTheme;
     final content = result.content;
+    final hasWarnings = result.warnings.isNotEmpty;
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpace.screen,
+        0,
+        AppSpace.screen,
+        AppSpace.xxl,
+      ),
       children: [
-        if (result.warnings.isNotEmpty)
-          Card(
-            color: AppColors.brassSoft,
+        _header(),
+        if (hasWarnings)
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppColors.accent2100,
+              borderRadius: AppRadius.all,
+            ),
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(AppSpace.m),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Check these',
-                    style: TextStyle(fontWeight: FontWeight.w600),
+                    style: AppText.body.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.accent2800,
+                    ),
                   ),
                   for (final warning in result.warnings)
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
-                      child: Text('•  $warning'),
+                      child: Text(
+                        '•  $warning',
+                        style: AppText.body.copyWith(
+                          color: AppColors.accent2800,
+                        ),
+                      ),
                     ),
                 ],
               ),
             ),
           ),
         if (content != null) ...[
-          const SizedBox(height: 8),
-          Text('BEO', style: theme.titleMedium),
-          const SizedBox(height: 4),
+          SectionHeading('BEO', first: !hasWarnings),
           Text(
             [
               if (result.title.isNotEmpty) result.title,
@@ -266,6 +309,7 @@ class _DocumentImportScreenState extends ConsumerState<DocumentImportScreen> {
               if (result.departments.isNotEmpty)
                 result.departments.map((d) => d.label).join(', '),
             ].join(' · '),
+            style: AppText.body,
           ),
           for (final (label, value) in [
             ('Timeline', content.timeline),
@@ -279,6 +323,7 @@ class _DocumentImportScreenState extends ConsumerState<DocumentImportScreen> {
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text.rich(
+                  style: AppText.body,
                   TextSpan(
                     children: [
                       TextSpan(
@@ -290,25 +335,17 @@ class _DocumentImportScreenState extends ConsumerState<DocumentImportScreen> {
                   ),
                 ),
               ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           const Text(
             'You can change any of this in the BEO editor next.',
-            style: TextStyle(color: AppColors.charcoalMuted),
+            style: AppText.meta,
           ),
         ],
-        const SizedBox(height: 16),
-        Text(
+        SectionHeading(
           content == null ? 'Menu items' : 'Also add to the event menu',
-          style: theme.titleMedium,
+          first: content == null && !hasWarnings,
         ),
-        if (result.menuItems.isEmpty)
-          const Padding(
-            padding: EdgeInsets.only(top: 4),
-            child: Text(
-              'No menu items found.',
-              style: TextStyle(color: AppColors.charcoalMuted),
-            ),
-          ),
+        if (result.menuItems.isEmpty) const EmptyNote('No menu items found.'),
         for (var i = 0; i < result.menuItems.length; i++)
           CheckboxListTile(
             contentPadding: EdgeInsets.zero,
@@ -319,8 +356,12 @@ class _DocumentImportScreenState extends ConsumerState<DocumentImportScreen> {
                     _chosen = {..._chosen};
                     value == true ? _chosen.add(i) : _chosen.remove(i);
                   }),
-            title: Text(result.menuItems[i].name),
+            title: Text(
+              result.menuItems[i].name,
+              style: AppText.body.copyWith(fontWeight: FontWeight.w600),
+            ),
             subtitle: Text(
+              style: AppText.meta,
               [
                 if (result.menuItems[i].course.isNotEmpty)
                   result.menuItems[i].course,
@@ -331,10 +372,10 @@ class _DocumentImportScreenState extends ConsumerState<DocumentImportScreen> {
               ].join(' · '),
             ),
           ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpace.l),
         Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: AppSpace.s,
+          runSpacing: AppSpace.s,
           children: [
             FilledButton(
               onPressed: content == null && _chosen.isEmpty ? null : _finish,

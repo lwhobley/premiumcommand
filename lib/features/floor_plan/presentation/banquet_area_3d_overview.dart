@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/broadsheet.dart';
 import '../../admin/data/banquet_area_repository.dart';
 import '../../admin/domain/banquet_area.dart';
 import 'banquet_area_beo_links.dart';
@@ -36,16 +37,12 @@ class _BanquetArea3DOverviewState extends ConsumerState<BanquetArea3DOverview> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Banquet area 3D overview',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        const SizedBox(height: 6),
+        const SectionHeading('Banquet area 3D overview', first: true),
         const Text(
           'Schematic only. Room shapes, dimensions, doors, and furniture have not been verified.',
-          style: TextStyle(color: AppColors.charcoalMuted),
+          style: AppText.meta,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.m),
         areasAsync.when(
           loading: () => const LinearProgressIndicator(),
           error: (_, _) => const Text(
@@ -86,12 +83,24 @@ class _BanquetArea3DOverviewState extends ConsumerState<BanquetArea3DOverview> {
                 if (current.canCombine && current.spaceCount > 1) ...[
                   const SizedBox(height: 12),
                   SegmentedButton<bool>(
+                    showSelectedIcon: false,
                     segments: const [
                       ButtonSegment(
                         value: false,
-                        label: Text('Separate rooms'),
+                        label: Text(
+                          'Separate rooms',
+                          softWrap: false,
+                          maxLines: 1,
+                        ),
                       ),
-                      ButtonSegment(value: true, label: Text('Combined view')),
+                      ButtonSegment(
+                        value: true,
+                        label: Text(
+                          'Combined view',
+                          softWrap: false,
+                          maxLines: 1,
+                        ),
+                      ),
                     ],
                     selected: {_combined},
                     onSelectionChanged: (selected) =>
@@ -116,10 +125,7 @@ class _BanquetArea3DOverviewState extends ConsumerState<BanquetArea3DOverview> {
                 const SizedBox(height: 6),
                 const Text(
                   'Illustrative, unscaled 3D schematic. Use a measured floor plan below for table placement.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.charcoalMuted,
-                  ),
+                  style: AppText.meta,
                 ),
               ],
             );

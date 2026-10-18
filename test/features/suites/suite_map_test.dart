@@ -114,7 +114,7 @@ void main() {
               })['floor']!
               as Map<String, Object?>;
       expect(assigned['muted'], isFalse);
-      expect(assigned['color'], '#2e7d5b');
+      expect(assigned['color'], '#0088b0');
       final concourse = scene['concourse']! as Map<String, Object?>;
       expect(concourse['id'], 'concourse');
       expect(concourse['label'], 'Concourse');
@@ -129,7 +129,7 @@ void main() {
       expect(scene['selected'], '201');
       final first = suites.firstWhere((s) => s['id'] == '201');
       expect(first['muted'], isFalse);
-      expect(first['color'], '#2e7d5b');
+      expect(first['color'], '#0088b0');
       expect(suites.firstWhere((s) => s['id'] == '229')['muted'], isTrue);
     },
   );

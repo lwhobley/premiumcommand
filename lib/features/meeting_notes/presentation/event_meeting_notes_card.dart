@@ -3,10 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/icons/phosphor.dart';
+
 import '../../../core/errors/app_failure.dart';
 import '../../../core/permissions/app_permission.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/time/venue_time.dart';
+import '../../../core/widgets/broadsheet.dart';
 import '../../auth/application/session_controller.dart';
 import '../../planning/presentation/planning_widgets.dart';
 import '../application/meeting_notes_providers.dart';
@@ -26,97 +29,65 @@ class EventMeetingNotesCard extends ConsumerWidget {
     final zone = session?.timeZone ?? 'UTC';
     final notes = ref.watch(eventMeetingNotesProvider(eventId));
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Meeting notes',
-                  style: Theme.of(context).textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w600),
-                ),
-              ),
-              if (isAdmin)
-                TextButton.icon(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionHeading(
+          'Meeting notes',
+          trailing: isAdmin
+              ? TextButton.icon(
                   onPressed: () =>
                       context.push('/meeting-notes/new?event=$eventId'),
-                  icon: const Icon(Icons.edit_note),
+                  icon: const PhosphorIcon(PhosphorIconsDuotone.notePencil),
                   label: const Text('Add notes'),
-                ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          notes.when(
-            loading: () => const LinearProgressIndicator(),
-            error: (error, _) => Text(userMessageFor(error)),
-            data: (list) => list.isEmpty
-                ? const Text(
-                    'No meeting notes for this event.',
-                    style: TextStyle(color: AppColors.charcoalMuted),
-                  )
-                : Column(
-                    children: [
-                      for (final note in list)
-                        Card(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          child: InkWell(
-                            onTap: isAdmin
-                                ? () =>
-                                      context.push('/meeting-notes/${note.id}')
-                                : null,
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    note.displayTitle,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  Text(
-                                    DateFormat('MMM d, y').format(
-                                      atVenue(
-                                        note.meetingAt ??
-                                            note.appliedAt ??
-                                            note.createdAt,
-                                        zone,
-                                      ),
-                                    ),
-                                    style: const TextStyle(
-                                      color: AppColors.charcoalMuted,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                  if (note.summary.isNotEmpty) ...[
-                                    const SizedBox(height: 8),
-                                    Text(note.summary),
-                                  ],
-                                  if (note.keyDetails.isNotEmpty) ...[
-                                    const SizedBox(height: 8),
-                                    for (final detail in note.keyDetails)
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                          bottom: 2,
-                                        ),
-                                        child: Text('•  $detail'),
-                                      ),
-                                  ],
-                                ],
-                              ),
-                            ),
+                )
+              : null,
+        ),
+        notes.when(
+          loading: () => const LinearProgressIndicator(),
+          error: (error, _) => Text(userMessageFor(error)),
+          data: (list) => list.isEmpty
+              ? const EmptyNote('No meeting notes for this event.')
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final note in list)
+                      OpenRow(
+                        title: note.displayTitle,
+                        meta: DateFormat('MMM d, y').format(
+                          atVenue(
+                            note.meetingAt ?? note.appliedAt ?? note.createdAt,
+                            zone,
                           ),
                         ),
-                    ],
-                  ),
-          ),
-        ],
-      ),
+                        below: note.summary.isEmpty && note.keyDetails.isEmpty
+                            ? null
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (note.summary.isNotEmpty)
+                                    Text(note.summary, style: AppText.body),
+                                  if (note.summary.isNotEmpty &&
+                                      note.keyDetails.isNotEmpty)
+                                    const SizedBox(height: 8),
+                                  for (final detail in note.keyDetails)
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 2),
+                                      child: Text(
+                                        '•  $detail',
+                                        style: AppText.body,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                        onTap: isAdmin
+                            ? () => context.push('/meeting-notes/${note.id}')
+                            : null,
+                      ),
+                  ],
+                ),
+        ),
+      ],
     );
   }
 }

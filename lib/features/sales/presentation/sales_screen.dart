@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/icons/phosphor.dart';
+
 import '../../../core/errors/app_failure.dart';
 import '../../../core/permissions/app_permission.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/broadsheet.dart';
+import '../../../core/widgets/tag.dart';
 import '../../auth/application/session_controller.dart';
 import '../../planning/presentation/planning_widgets.dart';
 import '../application/sales_providers.dart';
@@ -23,8 +27,9 @@ class SalesScreen extends ConsumerWidget {
     final canEdit = session.can(AppPermission.manageSales);
     final packages = ref.watch(salesPackagesProvider(session.venueId));
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Sales')),
+    return PageScaffold(
+      kicker: 'Premium sales',
+      title: 'Sales',
       floatingActionButton: canEdit
           ? FloatingActionButton.extended(
               onPressed: () => _add(
@@ -33,98 +38,97 @@ class SalesScreen extends ConsumerWidget {
                 session.venueId,
                 packages.value ?? const [],
               ),
-              icon: const Icon(Icons.add),
+              icon: const PhosphorIcon(PhosphorIconsDuotone.plus),
               label: const Text('Add package'),
             )
           : null,
-      body: packages.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(userMessageFor(error), textAlign: TextAlign.center),
-                TextButton(
+      children: [
+        packages.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: CircularProgressIndicator(),
+            ),
+          ),
+          error: (error, _) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(userMessageFor(error), style: AppText.body),
+              Transform.translate(
+                offset: const Offset(-10, 0),
+                child: TextButton(
                   onPressed: () =>
                       ref.invalidate(salesPackagesProvider(session.venueId)),
                   child: const Text('Try again'),
                 ),
-              ],
-            ),
-          ),
-        ),
-        data: (all) {
-          final groups = groupSalesPackages(all, includeInactive: canEdit);
-          if (groups.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  canEdit
-                      ? 'No packages yet. Use Add package to create the first one.'
-                      : 'No packages are available yet.',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.charcoalMuted),
-                ),
               ),
-            );
-          }
-          // Swiping in the showcase moves through every shown package, in page order.
-          final ordered = [for (final g in groups) ...g.packages];
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              final columns = constraints.maxWidth >= 1100
-                  ? 3
-                  : constraints.maxWidth >= 700
-                  ? 2
-                  : 1;
-              const gap = 16.0;
-              final cardWidth =
-                  (constraints.maxWidth - 32 - gap * (columns - 1)) / columns;
-              return ListView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-                children: [
-                  for (final group in groups) ...[
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8, bottom: 10),
-                      child: Text(
-                        group.category,
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                    ),
-                    Wrap(
-                      spacing: gap,
-                      runSpacing: gap,
-                      children: [
-                        for (final package in group.packages)
-                          SizedBox(
-                            width: cardWidth,
-                            child: _PackageCard(
-                              package: package,
-                              canEdit: canEdit,
-                              onOpen: () => showSalesShowcase(
-                                context,
-                                packages: ordered,
-                                initialIndex: ordered.indexOf(package),
-                              ),
-                              onEdit: () => _edit(context, ref, package),
-                              onMove: (delta) =>
-                                  _move(context, ref, ordered, package, delta),
-                              onDelete: () => _delete(context, ref, package),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                ],
+            ],
+          ),
+          data: (all) {
+            final groups = groupSalesPackages(all, includeInactive: canEdit);
+            if (groups.isEmpty) {
+              return EmptyNote(
+                canEdit
+                    ? 'No packages yet. Use Add package to create the first one.'
+                    : 'No packages are available yet.',
               );
-            },
-          );
-        },
-      ),
+            }
+            // Swiping in the showcase moves through every shown package, in page order.
+            final ordered = [for (final g in groups) ...g.packages];
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                // Column breakpoints are by screen width; the page pads both sides.
+                final screenWidth = constraints.maxWidth + 2 * AppSpace.screen;
+                final columns = screenWidth >= 1100
+                    ? 3
+                    : screenWidth >= 700
+                    ? 2
+                    : 1;
+                const gap = 16.0;
+                final cardWidth =
+                    (constraints.maxWidth - gap * (columns - 1)) / columns;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final (index, group) in groups.indexed) ...[
+                      SectionHeading(group.category, first: index == 0),
+                      Wrap(
+                        spacing: gap,
+                        runSpacing: gap,
+                        children: [
+                          for (final package in group.packages)
+                            SizedBox(
+                              width: cardWidth,
+                              child: _PackageCard(
+                                package: package,
+                                canEdit: canEdit,
+                                onOpen: () => showSalesShowcase(
+                                  context,
+                                  packages: ordered,
+                                  initialIndex: ordered.indexOf(package),
+                                ),
+                                onEdit: () => _edit(context, ref, package),
+                                onMove: (delta) => _move(
+                                  context,
+                                  ref,
+                                  ordered,
+                                  package,
+                                  delta,
+                                ),
+                                onDelete: () => _delete(context, ref, package),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ],
+                );
+              },
+            );
+          },
+        ),
+      ],
     );
   }
 
@@ -196,7 +200,9 @@ class SalesScreen extends ConsumerWidget {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.blocked),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.accent2700,
+            ),
             onPressed: () => Navigator.of(context).pop(true),
             child: const Text('Remove'),
           ),
@@ -221,12 +227,12 @@ class _PackageImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final placeholder = Container(
       height: height,
-      color: AppColors.surfaceMuted,
+      color: AppColors.neutral200,
       alignment: Alignment.center,
-      child: const Icon(
-        Icons.stadium_outlined,
+      child: const PhosphorIcon(
+        PhosphorIconsDuotone.buildings,
         size: 40,
-        color: AppColors.charcoalMuted,
+        color: AppColors.muted,
       ),
     );
     final link = url;
@@ -276,7 +282,7 @@ class _PackageCard extends StatelessWidget {
               child: _PackageImage(url: package.imageUrl),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
+              padding: const EdgeInsets.fromLTRB(16, 14, 6, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -284,17 +290,18 @@ class _PackageCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: Text(
-                          package.title,
-                          style: const TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        child: Padding(
+                          // Lines the title up with the menu button's icon.
+                          padding: EdgeInsets.only(top: canEdit ? 10 : 0),
+                          child: Text(package.title, style: AppText.rowTitle),
                         ),
                       ),
                       if (canEdit)
                         PopupMenuButton<String>(
                           tooltip: 'Edit package',
+                          icon: const PhosphorIcon(
+                            PhosphorIconsDuotone.dotsThree,
+                          ),
                           onSelected: (choice) {
                             switch (choice) {
                               case 'edit':
@@ -330,35 +337,23 @@ class _PackageCard extends StatelessWidget {
                   ),
                   if (!package.active)
                     const Padding(
-                      padding: EdgeInsets.only(top: 2),
-                      child: Text(
-                        'Hidden from the Sales page',
-                        style: TextStyle(
-                          color: AppColors.attention,
-                          fontSize: 12,
-                        ),
-                      ),
+                      padding: EdgeInsets.only(top: 4),
+                      child: Tag('Hidden from the Sales page', Tone.neutral),
                     ),
                   if (package.headlinePrice.isNotEmpty) ...[
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     Text(
                       options > 1
                           ? 'From ${package.headlinePrice}'
                           : package.headlinePrice,
                       style: const TextStyle(
-                        color: AppColors.brass,
+                        color: AppColors.accent700,
                         fontSize: 20,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     if (options > 1)
-                      Text(
-                        '$options pricing options',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.charcoalMuted,
-                        ),
-                      ),
+                      Text('$options pricing options', style: AppText.meta),
                   ],
                   if (package.summary.isNotEmpty) ...[
                     const SizedBox(height: 6),
@@ -366,21 +361,24 @@ class _PackageCard extends StatelessWidget {
                       package.summary,
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: AppColors.charcoalMuted),
+                      style: AppText.body.copyWith(color: AppColors.muted),
                     ),
                   ],
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
                   const Row(
                     children: [
-                      Icon(
-                        Icons.open_in_full,
+                      PhosphorIcon(
+                        PhosphorIconsDuotone.arrowsOut,
                         size: 14,
-                        color: AppColors.brass,
+                        color: AppColors.accent700,
                       ),
                       SizedBox(width: 4),
                       Text(
                         'Tap to show full screen',
-                        style: TextStyle(fontSize: 12, color: AppColors.brass),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.accent700,
+                        ),
                       ),
                     ],
                   ),
@@ -446,46 +444,68 @@ class _ShowcaseState extends State<_Showcase> {
   Widget build(BuildContext context) {
     final count = widget.packages.length;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.packages[_index].category),
-        leading: IconButton(
-          tooltip: 'Close',
-          icon: const Icon(Icons.close),
-          onPressed: () => Navigator.of(context).pop(),
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpace.screen,
+                AppSpace.xs,
+                AppSpace.s,
+                0,
+              ),
+              child: Row(
+                children: [
+                  Expanded(child: Kicker(widget.packages[_index].category)),
+                  IconButton(
+                    tooltip: 'Close',
+                    icon: const PhosphorIcon(PhosphorIconsDuotone.x),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: PageView.builder(
+                controller: _pages,
+                itemCount: count,
+                onPageChanged: (i) => setState(() => _index = i),
+                itemBuilder: (context, i) =>
+                    _ShowcasePage(package: widget.packages[i]),
+              ),
+            ),
+          ],
         ),
-      ),
-      body: PageView.builder(
-        controller: _pages,
-        itemCount: count,
-        onPageChanged: (i) => setState(() => _index = i),
-        itemBuilder: (context, i) => _ShowcasePage(package: widget.packages[i]),
       ),
       bottomNavigationBar: count < 2
           ? null
           : SafeArea(
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpace.screen,
+                  8,
+                  AppSpace.s,
+                  8,
                 ),
                 child: Row(
                   children: [
-                    IconButton.filledTonal(
-                      tooltip: 'Previous package',
-                      onPressed: _index == 0 ? null : () => _go(-1),
-                      icon: const Icon(Icons.chevron_left),
-                    ),
                     Expanded(
                       child: Text(
                         '${_index + 1} of $count',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: AppColors.charcoalMuted),
+                        style: AppText.meta.copyWith(fontSize: 15),
                       ),
                     ),
                     IconButton.filledTonal(
+                      tooltip: 'Previous package',
+                      onPressed: _index == 0 ? null : () => _go(-1),
+                      icon: const PhosphorIcon(PhosphorIconsDuotone.caretLeft),
+                    ),
+                    const SizedBox(width: AppSpace.s),
+                    IconButton.filledTonal(
                       tooltip: 'Next package',
                       onPressed: _index == count - 1 ? null : () => _go(1),
-                      icon: const Icon(Icons.chevron_right),
+                      icon: const PhosphorIcon(PhosphorIconsDuotone.caretRight),
                     ),
                   ],
                 ),
@@ -502,79 +522,72 @@ class _ShowcasePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context).textTheme;
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-      child: Center(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpace.screen,
+        AppSpace.s,
+        AppSpace.screen,
+        32,
+      ),
+      child: Align(
+        alignment: Alignment.topLeft,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 900),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               ClipRRect(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: AppRadius.all,
                 child: _PackageImage(url: package.imageUrl, height: 320),
               ),
-              const SizedBox(height: 20),
-              Text(
-                package.title,
-                style: theme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+              const SizedBox(height: AppSpace.l),
+              Text(package.title, style: AppText.screenTitle),
               if (package.summary.isNotEmpty) ...[
                 const SizedBox(height: 10),
                 Text(
                   package.summary,
-                  style: theme.titleMedium?.copyWith(
-                    color: AppColors.charcoalMuted,
+                  style: AppText.body.copyWith(
+                    fontSize: 18,
+                    color: AppColors.muted,
                   ),
                 ),
               ],
               if (package.priceRows.isNotEmpty) ...[
-                const SizedBox(height: 24),
-                Text('Pricing', style: theme.titleLarge),
-                const SizedBox(height: 8),
+                const SectionHeading('Pricing'),
                 for (final row in package.priceRows)
-                  Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                row.label,
+                                style: AppText.rowTitle.copyWith(fontSize: 20),
+                              ),
+                              if (row.detail.isNotEmpty)
                                 Text(
-                                  row.label,
-                                  style: const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w600,
+                                  row.detail,
+                                  style: AppText.body.copyWith(
+                                    color: AppColors.muted,
                                   ),
                                 ),
-                                if (row.detail.isNotEmpty)
-                                  Text(
-                                    row.detail,
-                                    style: const TextStyle(
-                                      fontSize: 15,
-                                      color: AppColors.charcoalMuted,
-                                    ),
-                                  ),
-                              ],
-                            ),
+                            ],
                           ),
-                          const SizedBox(width: 12),
-                          Text(
-                            row.price,
-                            style: const TextStyle(
-                              fontSize: 26,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.brass,
-                            ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          row.price,
+                          style: const TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.accent700,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 if (package.priceNote.isNotEmpty)
@@ -582,17 +595,12 @@ class _ShowcasePage extends StatelessWidget {
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
                       package.priceNote,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        color: AppColors.charcoalMuted,
-                      ),
+                      style: AppText.body.copyWith(color: AppColors.muted),
                     ),
                   ),
               ],
               if (package.features.isNotEmpty) ...[
-                const SizedBox(height: 24),
-                Text('Included', style: theme.titleLarge),
-                const SizedBox(height: 8),
+                const SectionHeading('Included'),
                 for (final feature in package.features)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
@@ -600,10 +608,10 @@ class _ShowcasePage extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Padding(
-                          padding: EdgeInsets.only(top: 2),
-                          child: Icon(
-                            Icons.check_circle,
-                            color: AppColors.ready,
+                          padding: EdgeInsets.only(top: 3),
+                          child: PhosphorIcon(
+                            PhosphorIconsDuotone.checkCircle,
+                            color: AppColors.accent700,
                             size: 22,
                           ),
                         ),
@@ -611,7 +619,7 @@ class _ShowcasePage extends StatelessWidget {
                         Expanded(
                           child: Text(
                             feature,
-                            style: const TextStyle(fontSize: 18),
+                            style: AppText.body.copyWith(fontSize: 18),
                           ),
                         ),
                       ],

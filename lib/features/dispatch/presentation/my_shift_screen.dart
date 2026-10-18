@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/app_failure.dart';
 import '../../../core/permissions/app_permission.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/broadsheet.dart';
 import '../../auth/application/session_controller.dart';
 import '../../staff/presentation/my_assignments_card.dart';
 import '../../events/application/event_providers.dart';
@@ -32,7 +32,10 @@ class _MyShiftScreenState extends ConsumerState<MyShiftScreen> {
   @override
   void initState() {
     super.initState();
-    _clock = Timer.periodic(const Duration(seconds: 30), (_) => setState(() => _now = DateTime.now()));
+    _clock = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => setState(() => _now = DateTime.now()),
+    );
   }
 
   @override
@@ -53,20 +56,25 @@ class _MyShiftScreenState extends ConsumerState<MyShiftScreen> {
   Future<void> _assign(ServiceRequest request) async {
     final dept = await showAssignDialog(context);
     if (dept == null) return;
-    await _run(() => ref.read(dispatchActionsProvider).move(
-          request,
-          to: RequestStatus.assigned,
-          department: dept.code,
-        ));
+    await _run(
+      () => ref
+          .read(dispatchActionsProvider)
+          .move(request, to: RequestStatus.assigned, department: dept.code),
+    );
   }
 
   Future<void> _withReason(ServiceRequest request, RequestStatus to) async {
     final reason = await showReasonDialog(
       context,
-      title: to == RequestStatus.blocked ? 'Why is this blocked?' : 'Why is this being rejected?',
+      title: to == RequestStatus.blocked
+          ? 'Why is this blocked?'
+          : 'Why is this being rejected?',
     );
     if (reason == null) return;
-    await _run(() => ref.read(dispatchActionsProvider).move(request, to: to, note: reason));
+    await _run(
+      () =>
+          ref.read(dispatchActionsProvider).move(request, to: to, note: reason),
+    );
   }
 
   @override
@@ -74,41 +82,40 @@ class _MyShiftScreenState extends ConsumerState<MyShiftScreen> {
     final session = ref.watch(sessionProvider);
     final snapshots = ref.watch(eventSnapshotsProvider);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('My Shift')),
-      body: session == null
-          ? const SizedBox.shrink()
+    return PageScaffold(
+      kicker: 'Live service',
+      title: 'My Shift',
+      children: session == null
+          ? const []
           : snapshots.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => Center(child: Text(userMessageFor(error))),
+              loading: () => const [LinearProgressIndicator()],
+              error: (error, _) => [Text(userMessageFor(error))],
               data: (items) {
                 final active = items
                     .map((s) => s.event)
                     .where((e) => e.status.isActive)
                     .toList();
                 final departments = session.departments;
-                return ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    MyAssignmentsCard(userId: session.userId),
-                    if (active.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.all(24),
-                        child: Text('No active events right now.', style: TextStyle(color: AppColors.charcoalMuted)),
+                return [
+                  MyAssignmentsCard(userId: session.userId),
+                  if (active.isEmpty)
+                    const EmptyNote('No active events right now.'),
+                  for (final event in active)
+                    _ShiftSection(
+                      event: event,
+                      userId: session.userId,
+                      departments: departments,
+                      permissions: session.permissions,
+                      now: _now,
+                      onAdvance: (request, to) => _run(
+                        () => ref
+                            .read(dispatchActionsProvider)
+                            .move(request, to: to),
                       ),
-                    for (final event in active)
-                      _ShiftSection(
-                        event: event,
-                        userId: session.userId,
-                        departments: departments,
-                        permissions: session.permissions,
-                        now: _now,
-                        onAdvance: (request, to) => _run(() => ref.read(dispatchActionsProvider).move(request, to: to)),
-                        onWithReason: _withReason,
-                        onAssign: _assign,
-                      ),
-                  ],
-                );
+                      onWithReason: _withReason,
+                      onAssign: _assign,
+                    ),
+                ];
               },
             ),
     );
@@ -143,47 +150,40 @@ class _ShiftSection extends ConsumerWidget {
     final canWork = permissions.contains(AppPermission.manageRequests);
     final canManage = permissions.contains(AppPermission.manageEvents);
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(event.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
-          const SizedBox(height: 8),
-          requests.when(
-            loading: () => const Padding(
-              padding: EdgeInsets.all(12),
-              child: LinearProgressIndicator(),
-            ),
-            error: (error, _) => Text(userMessageFor(error)),
-            data: (all) {
-              final mine = requestsForShift(
-                requests: all,
-                userId: userId,
-                departments: departments,
-              )..sort((a, b) => compareForDispatch(a, b, now, thresholds));
-              if (mine.isEmpty) {
-                return const Text('Nothing assigned to you right now.', style: TextStyle(color: AppColors.charcoalMuted));
-              }
-              return Column(
-                children: [
-                  for (final request in mine)
-                    RequestCard(
-                      request: request,
-                      now: now,
-                      canManage: canManage,
-                      canWork: canWork,
-                      onAdvance: (to) => onAdvance(request, to),
-                      onAssign: () => onAssign(request),
-                      thresholds: thresholds,
-                      onWithReason: (to) => onWithReason(request, to),
-                    ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionHeading(event.name, kicker: 'Requests for me'),
+        requests.when(
+          loading: () => const LinearProgressIndicator(),
+          error: (error, _) => Text(userMessageFor(error)),
+          data: (all) {
+            final mine = requestsForShift(
+              requests: all,
+              userId: userId,
+              departments: departments,
+            )..sort((a, b) => compareForDispatch(a, b, now, thresholds));
+            if (mine.isEmpty) {
+              return const EmptyNote('Nothing assigned to you right now.');
+            }
+            return Column(
+              children: [
+                for (final request in mine)
+                  RequestCard(
+                    request: request,
+                    now: now,
+                    canManage: canManage,
+                    canWork: canWork,
+                    onAdvance: (to) => onAdvance(request, to),
+                    onAssign: () => onAssign(request),
+                    thresholds: thresholds,
+                    onWithReason: (to) => onWithReason(request, to),
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
     );
   }
 }

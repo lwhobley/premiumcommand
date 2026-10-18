@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/icons/phosphor.dart';
+
 import '../../../core/permissions/app_permission.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/time/venue_time.dart';
-import '../../../core/widgets/status_chip.dart';
+import '../../../core/widgets/broadsheet.dart';
+import '../../../core/widgets/tag.dart';
 import '../../auth/application/session_controller.dart';
 import '../../events/application/event_providers.dart';
 import '../../events/domain/readiness.dart';
@@ -33,16 +36,17 @@ class BeoScreen extends ConsumerWidget {
     final permissions = session?.permissions ?? const <AppPermission>{};
     final activeEventId = eventId ?? ref.watch(selectedEventIdProvider);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('BEO Management')),
-      body: ListView(
-        padding: const EdgeInsets.only(bottom: 32),
-        children: [
-          if (eventId == null) const EventPicker(),
-          if (activeEventId != null)
-            _BeoBody(eventId: activeEventId, permissions: permissions),
-        ],
-      ),
+    return PageScaffold(
+      kicker: 'Planning',
+      title: 'BEO Management',
+      back: eventId != null && Navigator.of(context).canPop()
+          ? const BackLink()
+          : null,
+      children: [
+        if (eventId == null) const EventPicker(),
+        if (activeEventId != null)
+          _BeoBody(eventId: activeEventId, permissions: permissions),
+      ],
     );
   }
 }
@@ -62,7 +66,7 @@ class _BeoBody extends ConsumerWidget {
         canEdit && permissions.contains(AppPermission.manageConfiguration);
 
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.only(top: AppSpace.s),
       child: beo.when(
         loading: () => const LinearProgressIndicator(),
         error: (error, _) => Text('$error'),
@@ -71,10 +75,7 @@ class _BeoBody extends ConsumerWidget {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'No BEO for this event yet.',
-                  style: TextStyle(color: AppColors.charcoalMuted),
-                ),
+                const EmptyNote('No BEO for this event yet.'),
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 8,
@@ -88,7 +89,7 @@ class _BeoBody extends ConsumerWidget {
                     if (canImport)
                       OutlinedButton.icon(
                         onPressed: () => _import(context, ref, null),
-                        icon: const Icon(Icons.auto_awesome),
+                        icon: const PhosphorIcon(PhosphorIconsDuotone.sparkle),
                         label: const Text('Import with AI'),
                       ),
                   ],
@@ -107,12 +108,7 @@ class _BeoBody extends ConsumerWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                bundle.title,
-                style: Theme.of(context).textTheme.titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 12),
+              SectionHeading(bundle.title, first: true),
               if (pending != null)
                 _PendingCard(
                   revision: pending,
@@ -121,21 +117,23 @@ class _BeoBody extends ConsumerWidget {
                 ),
               if (approved != null) ...[
                 _ApprovedCard(revision: approved),
-                const SizedBox(height: 12),
                 _AcknowledgmentCard(
                   revision: approved,
                   acknowledged: bundle.acknowledgedDepartments,
                   canAck: canAck,
-                  allowedDepartments: session?.departments.map((d) => d.code).toSet() ?? const {},
-                  canManageEvents: permissions.contains(AppPermission.manageEvents),
+                  allowedDepartments:
+                      session?.departments.map((d) => d.code).toSet() ??
+                      const {},
+                  canManageEvents: permissions.contains(
+                    AppPermission.manageEvents,
+                  ),
                   onAck: (dept) => _ack(context, ref, approved, dept),
                 ),
               ] else
-                const Text(
+                const EmptyNote(
                   'No approved revision yet. Approve a draft to publish the BEO.',
-                  style: TextStyle(color: AppColors.charcoalMuted),
                 ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.l),
               if (canEdit && pending == null && bundle.latest != null)
                 Wrap(
                   spacing: 8,
@@ -143,38 +141,28 @@ class _BeoBody extends ConsumerWidget {
                   children: [
                     OutlinedButton.icon(
                       onPressed: () => _propose(context, ref, bundle),
-                      icon: const Icon(Icons.edit_note),
+                      icon: const PhosphorIcon(PhosphorIconsDuotone.notePencil),
                       label: const Text('Propose revision'),
                     ),
                     if (canImport)
                       OutlinedButton.icon(
                         onPressed: () => _import(context, ref, bundle),
-                        icon: const Icon(Icons.auto_awesome),
+                        icon: const PhosphorIcon(PhosphorIconsDuotone.sparkle),
                         label: const Text('Import revision with AI'),
                       ),
                   ],
                 ),
-              const SizedBox(height: 20),
-              Text(
-                'Revision history',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
+              const SectionHeading('Revision history'),
               for (final r in bundle.revisions)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text('Revision ${r.revisionNo} · ${r.summary}'),
-                  subtitle: Text(
-                    DateFormat('MMM d, h:mm a').format(atVenue(r.createdAt, session?.timeZone ?? 'UTC')),
-                  ),
-                  trailing: StatusChip(
-                    label: r.status.label,
-                    color: switch (r.status) {
-                      RevisionStatus.approved => AppColors.ready,
-                      RevisionStatus.draft => AppColors.attention,
-                      RevisionStatus.superseded => AppColors.neutral,
-                    },
-                  ),
+                OpenRow(
+                  title: 'Revision ${r.revisionNo} · ${r.summary}',
+                  meta: DateFormat('MMM d, h:mm a')
+                      .format(atVenue(r.createdAt, session?.timeZone ?? 'UTC')),
+                  trailing: Tag(r.status.label, switch (r.status) {
+                    RevisionStatus.approved => Tone.accent,
+                    RevisionStatus.draft => Tone.neutral,
+                    RevisionStatus.superseded => Tone.neutral,
+                  }),
                 ),
             ],
           );
@@ -364,29 +352,25 @@ class _PendingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      color: AppColors.brassSoft,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Revision ${revision.revisionNo} awaiting approval',
-              style: const TextStyle(fontWeight: FontWeight.w600),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpace.section),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          OpenRow(
+            title: 'Revision ${revision.revisionNo} awaiting approval',
+            meta: revision.summary,
+            trailing: const Tag('Draft', Tone.neutral),
+          ),
+          const SizedBox(height: AppSpace.s),
+          if (canApprove)
+            FilledButton(onPressed: onApprove, child: const Text('Approve'))
+          else
+            const Text(
+              'Only a director can approve BEO revisions.',
+              style: AppText.meta,
             ),
-            const SizedBox(height: 4),
-            Text(revision.summary),
-            const SizedBox(height: 10),
-            if (canApprove)
-              FilledButton(onPressed: onApprove, child: const Text('Approve'))
-            else
-              const Text(
-                'Only a director can approve BEO revisions.',
-                style: TextStyle(color: AppColors.charcoalMuted),
-              ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -400,45 +384,37 @@ class _ApprovedCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = revision.content;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Approved · revision ${revision.revisionNo}',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                ),
-                const StatusChip(label: 'Approved', color: AppColors.ready),
-              ],
+            Expanded(
+              child: Text(
+                'Approved · revision ${revision.revisionNo}',
+                style: AppText.rowTitle,
+              ),
             ),
-            const SizedBox(height: 10),
-            _Field(label: 'Guests', value: '${c.guests}'),
-            _Field(
-              label: 'Departments',
-              value: c.departments.isEmpty
-                  ? '—'
-                  : c.departments.map((d) => d.label).join(', '),
-            ),
-            if (c.timeline.isNotEmpty)
-              _Field(label: 'Timeline', value: c.timeline),
-            if (c.menu.isNotEmpty) _Field(label: 'Menu', value: c.menu),
-            if (c.dietary.isNotEmpty)
-              _Field(label: 'Dietary', value: c.dietary),
-            if (c.beverage.isNotEmpty)
-              _Field(label: 'Beverage', value: c.beverage),
-            if (c.equipment.isNotEmpty)
-              _Field(label: 'Equipment', value: c.equipment),
-            if (c.specialRequests.isNotEmpty)
-              _Field(label: 'Special requests', value: c.specialRequests),
+            const Tag('Approved', Tone.accent),
           ],
         ),
-      ),
+        const SizedBox(height: 12),
+        _Field(label: 'Guests', value: '${c.guests}'),
+        _Field(
+          label: 'Departments',
+          value: c.departments.isEmpty
+              ? '—'
+              : c.departments.map((d) => d.label).join(', '),
+        ),
+        if (c.timeline.isNotEmpty) _Field(label: 'Timeline', value: c.timeline),
+        if (c.menu.isNotEmpty) _Field(label: 'Menu', value: c.menu),
+        if (c.dietary.isNotEmpty) _Field(label: 'Dietary', value: c.dietary),
+        if (c.beverage.isNotEmpty) _Field(label: 'Beverage', value: c.beverage),
+        if (c.equipment.isNotEmpty)
+          _Field(label: 'Equipment', value: c.equipment),
+        if (c.specialRequests.isNotEmpty)
+          _Field(label: 'Special requests', value: c.specialRequests),
+      ],
     );
   }
 }
@@ -452,18 +428,18 @@ class _Field extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 120,
-            child: Text(
-              label,
-              style: const TextStyle(color: AppColors.charcoalMuted),
+            child: Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(label, style: AppText.meta),
             ),
           ),
-          Expanded(child: Text(value)),
+          Expanded(child: Text(value, style: AppText.body)),
         ],
       ),
     );
@@ -492,44 +468,30 @@ class _AcknowledgmentCard extends StatelessWidget {
     final depts = revision.affectedDepartments.map(Department.fromCode).toList()
       ..sort((a, b) => a.index.compareTo(b.index));
     if (depts.isEmpty) return const SizedBox.shrink();
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Department acknowledgment',
-              style: TextStyle(fontWeight: FontWeight.w600),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionHeading('Department acknowledgment'),
+        for (final d in depts)
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 56),
+            child: Row(
+              children: [
+                Expanded(child: Text(d.label, style: AppText.rowTitle)),
+                if (acknowledged.contains(d.code))
+                  const Tag('Acknowledged', Tone.accent)
+                else if (canAck &&
+                    (canManageEvents || allowedDepartments.contains(d.code)))
+                  OutlinedButton(
+                    onPressed: () => onAck(d.code),
+                    child: const Text('Acknowledge'),
+                  )
+                else
+                  const Tag('Pending', Tone.neutral),
+              ],
             ),
-            const SizedBox(height: 8),
-            for (final d in depts)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Row(
-                  children: [
-                    Expanded(child: Text(d.label)),
-                    if (acknowledged.contains(d.code))
-                      const StatusChip(
-                        label: 'Acknowledged',
-                        color: AppColors.ready,
-                      )
-                    else if (canAck && (canManageEvents || allowedDepartments.contains(d.code)))
-                      OutlinedButton(
-                        onPressed: () => onAck(d.code),
-                        child: const Text('Acknowledge'),
-                      )
-                    else
-                      const StatusChip(
-                        label: 'Pending',
-                        color: AppColors.attention,
-                      ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
+          ),
+      ],
     );
   }
 }
@@ -618,15 +580,24 @@ class _BeoEditorDialogState extends State<_BeoEditorDialog> {
   void _save() {
     final guests = int.tryParse(_guests.text.trim());
     if (widget.askTitle && _beoTitle.text.trim().isEmpty) {
-      setState(() { _errorField = 'title'; _error = 'Give the BEO a title.'; });
+      setState(() {
+        _errorField = 'title';
+        _error = 'Give the BEO a title.';
+      });
       return;
     }
     if (guests == null || guests < 0) {
-      setState(() { _errorField = 'guests'; _error = 'Guest count must be zero or greater.'; });
+      setState(() {
+        _errorField = 'guests';
+        _error = 'Guest count must be zero or greater.';
+      });
       return;
     }
     if (_summary.text.trim().isEmpty) {
-      setState(() { _errorField = 'summary'; _error = 'Describe what changed.'; });
+      setState(() {
+        _errorField = 'summary';
+        _error = 'Describe what changed.';
+      });
       return;
     }
     Navigator.pop(
@@ -662,21 +633,27 @@ class _BeoEditorDialogState extends State<_BeoEditorDialog> {
               if (widget.askTitle) ...[
                 TextField(
                   controller: _beoTitle,
-                  decoration: InputDecoration(labelText: 'BEO title',
-                      errorText: _errorField == 'title' ? _error : null),
+                  decoration: InputDecoration(
+                    labelText: 'BEO title',
+                    errorText: _errorField == 'title' ? _error : null,
+                  ),
                 ),
                 const SizedBox(height: 10),
               ],
               TextField(
                 controller: _guests,
                 keyboardType: TextInputType.number,
-                decoration: InputDecoration(labelText: 'Guests',
-                    errorText: _errorField == 'guests' ? _error : null),
+                decoration: InputDecoration(
+                  labelText: 'Guests',
+                  errorText: _errorField == 'guests' ? _error : null,
+                ),
               ),
               const SizedBox(height: 10),
-              const Text('Departments affected'),
+              const Text('Departments affected', style: AppText.meta),
+              const SizedBox(height: 6),
               Wrap(
                 spacing: 6,
+                runSpacing: 6,
                 children: [
                   for (final d in Department.values)
                     FilterChip(
