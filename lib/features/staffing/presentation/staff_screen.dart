@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/icons/phosphor.dart';
 import '../../../core/permissions/app_permission.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/time/venue_time.dart';
+import '../../../core/widgets/broadsheet.dart';
+import '../../../core/widgets/tag.dart';
 import '../../auth/application/session_controller.dart';
 import '../../events/domain/readiness.dart';
 import '../../planning/application/planning_providers.dart';
@@ -18,64 +21,90 @@ class StaffScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (!backendAvailable) return const BackendRequired(title: 'Staff Deployment');
+    if (!backendAvailable) {
+      return const BackendRequired(title: 'Staff Deployment');
+    }
 
     final session = ref.watch(sessionProvider);
     final permissions = session?.permissions ?? const <AppPermission>{};
     final eventId = ref.watch(selectedEventIdProvider);
     final canDeploy = permissions.contains(AppPermission.deployStaff);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Staff Deployment')),
+    return PageScaffold(
+      kicker: 'Operations',
+      title: 'Staff Deployment',
       floatingActionButton: canDeploy && eventId != null
           ? FloatingActionButton.extended(
-              onPressed: () => _addPosition(context, ref, session!.venueId, eventId),
-              icon: const Icon(Icons.person_add_alt),
+              onPressed: () =>
+                  _addPosition(context, ref, session!.venueId, eventId),
+              icon: const PhosphorIcon(PhosphorIconsDuotone.userPlus),
               label: const Text('Add position'),
             )
           : null,
-      body: ListView(
-        padding: const EdgeInsets.only(bottom: 96),
-        children: [
-          const EventPicker(),
-          if (session != null)
-            StaffDirectoryPanel(
-              venueId: session.venueId,
-              eventId: eventId,
-              canManage: canDeploy,
-            ),
-          if (eventId != null) ...[
-            _Roster(eventId: eventId, canDeploy: canDeploy, venueId: session?.venueId ?? ''),
-            _Briefings(eventId: eventId, canPublish: canDeploy, venueId: session?.venueId ?? ''),
-          ],
+      children: [
+        const EventPicker(),
+        if (session != null)
+          StaffDirectoryPanel(
+            venueId: session.venueId,
+            eventId: eventId,
+            canManage: canDeploy,
+          ),
+        if (eventId != null) ...[
+          _Roster(
+            eventId: eventId,
+            canDeploy: canDeploy,
+            venueId: session?.venueId ?? '',
+          ),
+          _Briefings(
+            eventId: eventId,
+            canPublish: canDeploy,
+            venueId: session?.venueId ?? '',
+          ),
         ],
-      ),
+      ],
     );
   }
 
-  Future<void> _addPosition(BuildContext context, WidgetRef ref, String venueId, String eventId) async {
+  Future<void> _addPosition(
+    BuildContext context,
+    WidgetRef ref,
+    String venueId,
+    String eventId,
+  ) async {
     final draft = await showDialog<_PositionDraft>(
       context: context,
       builder: (_) => const _PositionDialog(),
     );
     if (draft == null || !context.mounted) return;
-    await runWrite(context, () async {
-      await ref.read(planningRepositoryProvider).addStaff(
-            venueId: venueId,
-            eventId: eventId,
-            displayName: draft.name,
-            roleLabel: draft.role,
-            department: draft.department,
-            zone: draft.zone,
-            station: draft.station,
-          );
-      ref.invalidate(staffProvider(eventId));
-    }, success: draft.name.isEmpty ? 'Position added (uncovered).' : 'Position added.');
+    await runWrite(
+      context,
+      () async {
+        await ref
+            .read(planningRepositoryProvider)
+            .addStaff(
+              venueId: venueId,
+              eventId: eventId,
+              displayName: draft.name,
+              roleLabel: draft.role,
+              department: draft.department,
+              zone: draft.zone,
+              station: draft.station,
+            );
+        ref.invalidate(staffProvider(eventId));
+      },
+      success: draft.name.isEmpty
+          ? 'Position added (uncovered).'
+          : 'Position added.',
+    );
   }
 }
 
 class _Roster extends ConsumerWidget {
-  const _Roster({required this.eventId, required this.canDeploy, required this.venueId});
+  const _Roster({
+    required this.eventId,
+    required this.canDeploy,
+    required this.venueId,
+  });
 
   final String eventId;
   final bool canDeploy;
@@ -84,72 +113,57 @@ class _Roster extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final staff = ref.watch(staffProvider(eventId));
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: staff.when(
-        loading: () => const LinearProgressIndicator(),
-        error: (error, _) => Text('$error'),
-        data: (items) {
-          final uncovered = items.where((s) => !s.isCovered).toList();
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '${items.length - uncovered.length} of ${items.length} positions covered',
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  if (canDeploy)
-                    TextButton.icon(
-                      onPressed: () => _importCsv(context, ref),
-                      icon: const Icon(Icons.upload_file_outlined),
-                      label: const Text('Import CSV'),
-                    ),
-                ],
-              ),
-              if (uncovered.isNotEmpty)
-                Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.symmetric(vertical: 8),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.blocked.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text('${uncovered.length} uncovered position(s) need a person.',
-                      style: const TextStyle(color: AppColors.blocked, fontWeight: FontWeight.w600)),
-                ),
-              const SizedBox(height: 8),
-              for (final s in items)
-                Card(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: ListTile(
-                    leading: Icon(
-                      s.isCovered ? Icons.check_circle_outline : Icons.error_outline,
-                      color: s.isCovered ? AppColors.ready : AppColors.blocked,
-                    ),
-                    title: Text(s.isCovered ? s.displayName : 'Uncovered position'),
-                    subtitle: Text([
-                      if (s.roleLabel.isNotEmpty) s.roleLabel,
-                      s.department.label,
-                      if (s.zone.isNotEmpty) 'Zone ${s.zone}',
-                      if (s.station.isNotEmpty) s.station,
-                    ].join(' · ')),
-                    trailing: canDeploy ? const Icon(Icons.edit_outlined) : null,
-                    onTap: canDeploy ? () => _assign(context, ref, s) : null,
-                  ),
-                ),
-            ],
-          );
-        },
+    return staff.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.only(top: AppSpace.section),
+        child: LinearProgressIndicator(),
       ),
+      error: (error, _) => Text('$error'),
+      data: (items) {
+        final uncovered = items.where((s) => !s.isCovered).toList();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SectionHeading(
+              '${items.length - uncovered.length} of ${items.length} positions covered',
+              trailing: canDeploy
+                  ? TextButton.icon(
+                      onPressed: () => _importCsv(context, ref),
+                      icon: const PhosphorIcon(
+                        PhosphorIconsDuotone.fileArrowUp,
+                      ),
+                      label: const Text('Import CSV'),
+                    )
+                  : null,
+            ),
+            if (uncovered.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  '${uncovered.length} uncovered position(s) need a person.',
+                  style: AppText.body.copyWith(
+                    color: AppColors.accent2700,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            for (final s in items)
+              _PositionRow(
+                position: s,
+                canDeploy: canDeploy,
+                onTap: () => _assign(context, ref, s),
+              ),
+          ],
+        );
+      },
     );
   }
 
-  Future<void> _assign(BuildContext context, WidgetRef ref, StaffPosition position) async {
+  Future<void> _assign(
+    BuildContext context,
+    WidgetRef ref,
+    StaffPosition position,
+  ) async {
     // Linking to a real account is what lets the person see this assignment and get notified.
     final members = await ref.read(venueMembersProvider(venueId).future);
     if (!context.mounted) return;
@@ -162,7 +176,8 @@ class _Roster extends ConsumerWidget {
         children: [
           for (final m in members)
             SimpleDialogOption(
-              onPressed: () => Navigator.pop(dialogContext, (name: m.name, userId: m.id)),
+              onPressed: () =>
+                  Navigator.pop(dialogContext, (name: m.name, userId: m.id)),
               child: Text(m.name),
             ),
           SimpleDialogOption(
@@ -178,7 +193,8 @@ class _Roster extends ConsumerWidget {
             child: const Text('Type a name (no account)…'),
           ),
           SimpleDialogOption(
-            onPressed: () => Navigator.pop(dialogContext, (name: '', userId: null)),
+            onPressed: () =>
+                Navigator.pop(dialogContext, (name: '', userId: null)),
             child: const Text('Leave uncovered'),
           ),
         ],
@@ -190,18 +206,26 @@ class _Roster extends ConsumerWidget {
         ? const PlaceChoice()
         : await showPlaceDialog(context, premiumSpaces: premiumSpaces);
     if (place == null || !context.mounted) return;
-    await runWrite(context, () async {
-      await ref.read(planningRepositoryProvider).reassignStaff(
-            position.id,
-            displayName: choice.name,
-            userId: choice.userId,
-            suiteAssignmentId: place.suiteAssignmentId,
-            department: place.department,
-            zone: place.zone,
-            station: place.station,
-          );
-      ref.invalidate(staffProvider(eventId));
-    }, success: choice.name.isEmpty ? 'Position is now uncovered.' : 'Assigned to ${choice.name}.');
+    await runWrite(
+      context,
+      () async {
+        await ref
+            .read(planningRepositoryProvider)
+            .reassignStaff(
+              position.id,
+              displayName: choice.name,
+              userId: choice.userId,
+              suiteAssignmentId: place.suiteAssignmentId,
+              department: place.department,
+              zone: place.zone,
+              station: place.station,
+            );
+        ref.invalidate(staffProvider(eventId));
+      },
+      success: choice.name.isEmpty
+          ? 'Position is now uncovered.'
+          : 'Assigned to ${choice.name}.',
+    );
   }
 
   Future<void> _importCsv(BuildContext context, WidgetRef ref) async {
@@ -212,36 +236,47 @@ class _Roster extends ConsumerWidget {
     if (text == null || !context.mounted) return;
     final parsed = parseRosterCsv(text);
     if (parsed.errors.isNotEmpty && parsed.rows.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(parsed.errors.first)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(parsed.errors.first)));
       return;
     }
     final proceed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Import ${parsed.rows.length} rows?'),
-        content: Text(parsed.errors.isEmpty
-            ? 'Every row is valid.'
-            : '${parsed.errors.length} row(s) will be skipped:\n${parsed.errors.take(6).join('\n')}'),
+        content: Text(
+          parsed.errors.isEmpty
+              ? 'Every row is valid.'
+              : '${parsed.errors.length} row(s) will be skipped:\n${parsed.errors.take(6).join('\n')}',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Import')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Import'),
+          ),
         ],
       ),
     );
     if (proceed != true || !context.mounted) return;
     await runWrite(context, () async {
-      await ref.read(planningRepositoryProvider).importRoster(
-            venueId: venueId,
-            eventId: eventId,
-            rows: parsed.rows,
-          );
+      await ref
+          .read(planningRepositoryProvider)
+          .importRoster(venueId: venueId, eventId: eventId, rows: parsed.rows);
       ref.invalidate(staffProvider(eventId));
     }, success: 'Imported ${parsed.rows.length} rows.');
   }
 }
 
 class _Briefings extends ConsumerWidget {
-  const _Briefings({required this.eventId, required this.canPublish, required this.venueId});
+  const _Briefings({
+    required this.eventId,
+    required this.canPublish,
+    required this.venueId,
+  });
 
   final String eventId;
   final bool canPublish;
@@ -250,71 +285,79 @@ class _Briefings extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final briefings = ref.watch(briefingsProvider(eventId));
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(child: Text('Briefings', style: Theme.of(context).textTheme.titleMedium)),
-              if (canPublish)
-                TextButton.icon(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionHeading(
+          'Briefings',
+          trailing: canPublish
+              ? TextButton.icon(
                   onPressed: () => _publish(context, ref),
-                  icon: const Icon(Icons.campaign_outlined),
+                  icon: const PhosphorIcon(PhosphorIconsDuotone.megaphone),
                   label: const Text('Publish'),
-                ),
-            ],
-          ),
-          briefings.when(
-            loading: () => const LinearProgressIndicator(),
-            error: (error, _) => Text('$error'),
-            data: (items) {
-              if (items.isEmpty) {
-                return const Text('No briefings for this event yet.', style: TextStyle(color: AppColors.charcoalMuted));
-              }
-              return Column(
-                children: [
-                  for (final b in items)
-                    Card(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(b.title, style: const TextStyle(fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 4),
-                            Text(b.body),
-                            const SizedBox(height: 4),
-                            Text(DateFormat('MMM d, h:mm a').format(atVenue(b.createdAt, ref.watch(sessionProvider)?.timeZone ?? 'UTC')),
-                                style: const TextStyle(color: AppColors.charcoalMuted, fontSize: 12)),
-                            const SizedBox(height: 8),
-                            if (b.acknowledgedByMe)
-                              const Row(children: [
-                                Icon(Icons.check, size: 18, color: AppColors.ready),
-                                SizedBox(width: 6),
-                                Text('You acknowledged this briefing'),
-                              ])
-                            else
-                              FilledButton.tonal(
-                                onPressed: () => runWrite(context, () async {
-                                  await ref.read(planningRepositoryProvider)
-                                      .acknowledgeBriefing(venueId: venueId, briefingId: b.id);
-                                  ref.invalidate(briefingsProvider(eventId));
-                                }, success: 'Acknowledged.'),
-                                child: const Text('Acknowledge'),
-                              ),
-                          ],
+                )
+              : null,
+        ),
+        briefings.when(
+          loading: () => const LinearProgressIndicator(),
+          error: (error, _) => Text('$error'),
+          data: (items) {
+            if (items.isEmpty) {
+              return const EmptyNote('No briefings for this event yet.');
+            }
+            return Column(
+              children: [
+                for (final b in items)
+                  OpenRow(
+                    title: b.title,
+                    below: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(b.body, style: AppText.body),
+                        const SizedBox(height: 4),
+                        Text(
+                          DateFormat('MMM d, h:mm a').format(
+                            atVenue(
+                              b.createdAt,
+                              ref.watch(sessionProvider)?.timeZone ?? 'UTC',
+                            ),
+                          ),
+                          style: AppText.meta,
                         ),
-                      ),
+                        const SizedBox(height: 8),
+                        if (b.acknowledgedByMe)
+                          const Row(
+                            children: [
+                              PhosphorIcon(
+                                PhosphorIconsDuotone.check,
+                                size: 18,
+                                color: AppColors.accent700,
+                              ),
+                              SizedBox(width: 6),
+                              Text('You acknowledged this briefing'),
+                            ],
+                          )
+                        else
+                          FilledButton(
+                            onPressed: () => runWrite(context, () async {
+                              await ref
+                                  .read(planningRepositoryProvider)
+                                  .acknowledgeBriefing(
+                                    venueId: venueId,
+                                    briefingId: b.id,
+                                  );
+                              ref.invalidate(briefingsProvider(eventId));
+                            }, success: 'Acknowledged.'),
+                            child: const Text('Acknowledge'),
+                          ),
+                      ],
                     ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
     );
   }
 
@@ -325,7 +368,9 @@ class _Briefings extends ConsumerWidget {
     );
     if (draft == null || !context.mounted) return;
     await runWrite(context, () async {
-      await ref.read(planningRepositoryProvider).createBriefing(
+      await ref
+          .read(planningRepositoryProvider)
+          .createBriefing(
             venueId: venueId,
             eventId: eventId,
             title: draft.$1,
@@ -333,6 +378,86 @@ class _Briefings extends ConsumerWidget {
           );
       ref.invalidate(briefingsProvider(eventId));
     }, success: 'Briefing published.');
+  }
+}
+
+/// A roster position as an open row. Uncovered positions read in the alert color with a tag.
+class _PositionRow extends StatelessWidget {
+  const _PositionRow({
+    required this.position,
+    required this.canDeploy,
+    required this.onTap,
+  });
+
+  final StaffPosition position;
+  final bool canDeploy;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = position;
+    final content = ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: AppSpace.minTap),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpace.row / 2),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: PhosphorIcon(
+                s.isCovered
+                    ? PhosphorIconsDuotone.checkCircle
+                    : PhosphorIconsDuotone.warningCircle,
+                color: s.isCovered ? AppColors.accent700 : AppColors.text,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    s.isCovered ? s.displayName : 'Uncovered position',
+                    style: AppText.rowTitle.copyWith(
+                      color: s.isCovered
+                          ? AppColors.text
+                          : AppColors.accent2700,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    [
+                      if (s.roleLabel.isNotEmpty) s.roleLabel,
+                      s.department.label,
+                      if (s.zone.isNotEmpty) 'Zone ${s.zone}',
+                      if (s.station.isNotEmpty) s.station,
+                    ].join(' · '),
+                    style: AppText.meta,
+                  ),
+                ],
+              ),
+            ),
+            if (!s.isCovered) ...[
+              const SizedBox(width: 12),
+              const Padding(
+                padding: EdgeInsets.only(top: 3),
+                child: Tag('Uncovered', Tone.alert),
+              ),
+            ],
+            if (canDeploy) ...[
+              const SizedBox(width: 12),
+              const PhosphorIcon(
+                PhosphorIconsDuotone.pencilSimple,
+                color: AppColors.accent700,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+    if (!canDeploy) return content;
+    return InkWell(onTap: onTap, borderRadius: AppRadius.all, child: content);
   }
 }
 
@@ -382,25 +507,45 @@ class _PositionDialogState extends State<_PositionDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: _name, decoration: const InputDecoration(labelText: 'Person (leave blank if uncovered)')),
+            TextField(
+              controller: _name,
+              decoration: const InputDecoration(
+                labelText: 'Person (leave blank if uncovered)',
+              ),
+            ),
             const SizedBox(height: 10),
-            TextField(controller: _role, decoration: const InputDecoration(labelText: 'Role')),
+            TextField(
+              controller: _role,
+              decoration: const InputDecoration(labelText: 'Role'),
+            ),
             const SizedBox(height: 10),
             DropdownButtonFormField<Department>(
               initialValue: _dept,
               decoration: const InputDecoration(labelText: 'Department'),
-              items: [for (final d in Department.values) DropdownMenuItem(value: d, child: Text(d.label))],
+              items: [
+                for (final d in Department.values)
+                  DropdownMenuItem(value: d, child: Text(d.label)),
+              ],
               onChanged: (v) => setState(() => _dept = v ?? _dept),
             ),
             const SizedBox(height: 10),
-            TextField(controller: _zone, decoration: const InputDecoration(labelText: 'Zone')),
+            TextField(
+              controller: _zone,
+              decoration: const InputDecoration(labelText: 'Zone'),
+            ),
             const SizedBox(height: 10),
-            TextField(controller: _station, decoration: const InputDecoration(labelText: 'Station')),
+            TextField(
+              controller: _station,
+              decoration: const InputDecoration(labelText: 'Station'),
+            ),
           ],
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
         FilledButton(
           onPressed: () => Navigator.pop(
             context,
@@ -444,11 +589,19 @@ class _NameDialogState extends State<_NameDialog> {
       content: TextField(
         controller: _controller,
         autofocus: true,
-        decoration: const InputDecoration(labelText: 'Name (clear to leave uncovered)'),
+        decoration: const InputDecoration(
+          labelText: 'Name (clear to leave uncovered)',
+        ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-        FilledButton(onPressed: () => Navigator.pop(context, _controller.text.trim()), child: const Text('Save')),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _controller.text.trim()),
+          child: const Text('Save'),
+        ),
       ],
     );
   }
@@ -462,7 +615,9 @@ class _CsvDialog extends StatefulWidget {
 }
 
 class _CsvDialogState extends State<_CsvDialog> {
-  final _text = TextEditingController(text: 'name,role,department,zone,station\n');
+  final _text = TextEditingController(
+    text: 'name,role,department,zone,station\n',
+  );
 
   @override
   void dispose() {
@@ -480,7 +635,7 @@ class _CsvDialogState extends State<_CsvDialog> {
           controller: _text,
           minLines: 6,
           maxLines: 12,
-          style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+          style: const TextStyle(fontSize: 13),
           decoration: const InputDecoration(
             helperText: 'Header: name,role,department,zone,station. Department codes: suites, banquets, culinary, beverage, lounge, operations.',
             helperMaxLines: 3,
@@ -488,8 +643,14 @@ class _CsvDialogState extends State<_CsvDialog> {
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-        FilledButton(onPressed: () => Navigator.pop(context, _text.text), child: const Text('Review')),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _text.text),
+          child: const Text('Review'),
+        ),
       ],
     );
   }
@@ -521,14 +682,25 @@ class _BriefingDialogState extends State<_BriefingDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: _title, decoration: const InputDecoration(labelText: 'Title')),
+            TextField(
+              controller: _title,
+              decoration: const InputDecoration(labelText: 'Title'),
+            ),
             const SizedBox(height: 10),
-            TextField(controller: _body, minLines: 3, maxLines: 6, decoration: const InputDecoration(labelText: 'Briefing')),
+            TextField(
+              controller: _body,
+              minLines: 3,
+              maxLines: 6,
+              decoration: const InputDecoration(labelText: 'Briefing'),
+            ),
           ],
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
         FilledButton(
           onPressed: () {
             if (_title.text.trim().isEmpty) return;

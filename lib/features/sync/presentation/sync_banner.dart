@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/offline/outbox.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/tag.dart';
 import '../application/sync_controller.dart';
 
 /// Shows queued and review-needed changes above every screen. Hidden when there is nothing to report.
@@ -15,30 +16,42 @@ class SyncBanner extends ConsumerWidget {
     if (!state.hasWork) return const SizedBox.shrink();
 
     final review = state.needsReview > 0;
-    final color = review ? AppColors.blocked : AppColors.attention;
+    final foreground = review ? AppColors.accent2800 : AppColors.accent800;
     final message = review
         ? '${state.needsReview} change(s) need your review.'
         : state.syncing
-            ? 'Syncing ${state.pending} change(s)…'
-            : '${state.pending} change(s) saved on this device. Waiting to sync.';
+        ? 'Syncing ${state.pending} change(s)…'
+        : '${state.pending} change(s) saved on this device. Waiting to sync.';
 
     return Material(
-      color: color.withValues(alpha: 0.10),
+      color: review ? AppColors.accent2100 : AppColors.accent100,
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.fromLTRB(AppSpace.screen, 4, 12, 4),
           child: Row(
             children: [
-              Icon(review ? Icons.rule_outlined : Icons.cloud_off_outlined, size: 18, color: color),
-              const SizedBox(width: 8),
-              Expanded(child: Text(message, style: TextStyle(color: color, fontWeight: FontWeight.w600))),
+              Expanded(
+                child: Text(
+                  message,
+                  style: TextStyle(
+                    color: foreground,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
               TextButton(
-                onPressed: () => showDialog<void>(context: context, builder: (_) => const _ReviewDialog()),
+                onPressed: () => showDialog<void>(
+                  context: context,
+                  builder: (_) => const _ReviewDialog(),
+                ),
                 child: const Text('Review'),
               ),
               TextButton(
-                onPressed: state.syncing ? null : () => ref.read(syncControllerProvider.notifier).flush(),
+                onPressed: state.syncing
+                    ? null
+                    : () => ref.read(syncControllerProvider.notifier).flush(),
                 child: const Text('Sync now'),
               ),
             ],
@@ -71,36 +84,50 @@ class _ReviewDialog extends ConsumerWidget {
                   for (final OutboxItem item in items)
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: Icon(
-                        item.needsReview ? Icons.error_outline : Icons.schedule,
-                        color: item.needsReview ? AppColors.blocked : AppColors.attention,
+                      leading: Tag(
+                        item.needsReview ? 'Review' : 'Waiting',
+                        item.needsReview ? Tone.alert : Tone.neutral,
                       ),
                       title: Text(_label(item.kind)),
-                      subtitle: Text(item.needsReview
-                          ? item.lastError
-                          : 'Saved ${_ago(item.createdAt)}'),
+                      subtitle: Text(
+                        item.needsReview
+                            ? item.lastError
+                            : 'Saved ${_ago(item.createdAt)}',
+                      ),
                       trailing: item.needsReview
-                          ? Row(mainAxisSize: MainAxisSize.min, children: [
-                              TextButton(onPressed: () => controller.retry(item.id), child: const Text('Retry')),
-                              TextButton(onPressed: () => controller.discard(item.id), child: const Text('Discard')),
-                            ])
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                TextButton(
+                                  onPressed: () => controller.retry(item.id),
+                                  child: const Text('Retry'),
+                                ),
+                                TextButton(
+                                  onPressed: () => controller.discard(item.id),
+                                  child: const Text('Discard'),
+                                ),
+                              ],
+                            )
                           : null,
                     ),
                 ],
               ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Close'),
+        ),
       ],
     );
   }
 
   static String _label(String kind) => switch (kind) {
-        outboxCreateRequest => 'New service request',
-        outboxTransitionRequest => 'Service request update',
-        outboxSetTaskStatus => 'Task update',
-        _ => 'Change',
-      };
+    outboxCreateRequest => 'New service request',
+    outboxTransitionRequest => 'Service request update',
+    outboxSetTaskStatus => 'Task update',
+    _ => 'Change',
+  };
 
   static String _ago(DateTime at) {
     final minutes = DateTime.now().difference(at).inMinutes;

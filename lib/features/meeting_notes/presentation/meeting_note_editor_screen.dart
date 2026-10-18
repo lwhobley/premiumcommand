@@ -3,10 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/icons/phosphor.dart';
+
 import '../../../core/errors/app_failure.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/time/venue_time.dart';
-import '../../../core/widgets/status_chip.dart';
+import '../../../core/widgets/broadsheet.dart';
+import '../../../core/widgets/tag.dart';
 import '../../auth/application/session_controller.dart';
 import '../../events/application/event_providers.dart';
 import '../../events/domain/ops_event.dart';
@@ -353,76 +356,89 @@ class _MeetingNoteEditorScreenState
   @override
   Widget build(BuildContext context) {
     final note = _note;
+    final header = ScreenHeader(
+      padded: false,
+      back: const BackLink(),
+      kicker: 'Meeting notes',
+      title: note == null ? 'New meeting note' : note.displayTitle,
+      actions: [
+        if (note != null && !note.isApplied)
+          PopupMenuButton<String>(
+            icon: const PhosphorIcon(PhosphorIconsDuotone.dotsThree),
+            onSelected: (value) => switch (value) {
+              'dismiss' => _dismiss(true),
+              'restore' => _dismiss(false),
+              _ => _delete(),
+            },
+            itemBuilder: (context) => [
+              if (note.status == MeetingNoteStatus.dismissed)
+                const PopupMenuItem(value: 'restore', child: Text('Restore'))
+              else
+                const PopupMenuItem(value: 'dismiss', child: Text('Dismiss')),
+              const PopupMenuItem(value: 'delete', child: Text('Delete')),
+            ],
+          ),
+      ],
+    );
+    final top = <Widget>[
+      header,
+      if (note != null) ...[
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Tag(note.status.label, meetingNoteStatusTone(note.status)),
+        ),
+        const SizedBox(height: AppSpace.l),
+      ],
+    ];
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text(note == null ? 'New meeting note' : note.displayTitle),
-        actions: [
-          if (note != null) ...[
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Center(
-                child: StatusChip(
-                  label: note.status.label,
-                  color: meetingNoteStatusColor(note.status),
-                ),
-              ),
-            ),
-            if (!note.isApplied)
-              PopupMenuButton<String>(
-                onSelected: (value) => switch (value) {
-                  'dismiss' => _dismiss(true),
-                  'restore' => _dismiss(false),
-                  _ => _delete(),
-                },
-                itemBuilder: (context) => [
-                  if (note.status == MeetingNoteStatus.dismissed)
-                    const PopupMenuItem(
-                      value: 'restore',
-                      child: Text('Restore'),
-                    )
-                  else
-                    const PopupMenuItem(
-                      value: 'dismiss',
-                      child: Text('Dismiss'),
+      body: SafeArea(
+        bottom: false,
+        child: _loading
+            ? _page([...top, const LinearProgressIndicator()])
+            : _loadError != null
+            ? _page([...top, Text(_loadError!)])
+            : Column(
+                children: [
+                  if (_busy != null)
+                    Material(
+                      color: AppColors.accent100,
+                      child: ListTile(
+                        dense: true,
+                        leading: const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        title: Text(_busy!),
+                      ),
                     ),
-                  const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                  Expanded(
+                    child: note?.isApplied == true
+                        ? _appliedView(note!, top)
+                        : _editView(top),
+                  ),
                 ],
               ),
-          ],
-        ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _loadError != null
-          ? Center(child: Text(_loadError!))
-          : Column(
-              children: [
-                if (_busy != null)
-                  Material(
-                    color: AppColors.brassSoft,
-                    child: ListTile(
-                      dense: true,
-                      leading: const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                      title: Text(_busy!),
-                    ),
-                  ),
-                Expanded(
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 820),
-                      child: note?.isApplied == true
-                          ? _appliedView(note!)
-                          : _editView(),
-                    ),
-                  ),
-                ),
-              ],
-            ),
     );
   }
+
+  /// The page's scroll view, flush left and at most 820 wide.
+  Widget _page(List<Widget> children) => Align(
+    alignment: Alignment.topLeft,
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 820),
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpace.screen,
+          0,
+          AppSpace.screen,
+          48,
+        ),
+        children: children,
+      ),
+    ),
+  );
 
   String _venueTime(DateTime instant) {
     final zone = ref.read(sessionProvider)?.timeZone ?? 'UTC';
@@ -445,302 +461,233 @@ class _MeetingNoteEditorScreenState
     return [for (final s in snapshots) s.event];
   }
 
-  Widget _editView() {
+  Widget _editView(List<Widget> top) {
     final busy = _busy != null;
     final events = _events();
     final event = events.where((e) => e.id == _eventId).firstOrNull;
     final changesMatchEvent =
         _changesForEventId != null && _changesForEventId == _eventId;
     final match = _match;
-    final theme = Theme.of(context).textTheme;
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 48),
-      children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(
-                  controller: _title,
-                  decoration: const InputDecoration(
-                    labelText: 'Title (optional)',
-                    hintText: 'Client walkthrough',
-                  ),
-                  maxLength: 200,
-                  onChanged: (_) => setState(() {}),
-                ),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.event_outlined,
-                      size: 18,
-                      color: AppColors.charcoalMuted,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _meetingAt == null
-                            ? 'Meeting date not set'
-                            : 'Met on ${DateFormat('EEE MMM d, y').format(_meetingAt!)}',
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: busy ? null : _pickMeetingDate,
-                      child: const Text('Set date'),
-                    ),
-                    if (_meetingAt != null)
-                      IconButton(
-                        tooltip: 'Clear date',
-                        onPressed: busy
-                            ? null
-                            : () => setState(() => _meetingAt = null),
-                        icon: const Icon(Icons.close),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _body,
-                  decoration: const InputDecoration(
-                    labelText: 'Meeting notes',
-                    hintText: 'Who met, what was agreed, numbers, times, dietary needs, follow-ups…',
-                    alignLabelWithHint: true,
-                    border: OutlineInputBorder(),
-                  ),
-                  minLines: 8,
-                  maxLines: 24,
-                  maxLength: _maxBody,
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    FilledButton.icon(
-                      onPressed: busy ? null : () => _analyze(),
-                      icon: const Icon(Icons.auto_awesome),
-                      label: Text(
-                        _note?.analysis == null && _match == null
-                            ? 'Find the event and suggest changes'
-                            : 'Ask the assistant again',
-                      ),
-                    ),
-                    OutlinedButton(
-                      onPressed: busy || !_dirty ? null : _save,
-                      child: const Text('Save'),
-                    ),
-                  ],
-                ),
-                if (_dirty && _note?.analysis != null)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 8),
-                    child: Text(
-                      'Saving edits clears the current suggestions.',
-                      style: TextStyle(
-                        color: AppColors.charcoalMuted,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-              ],
+    return _page([
+      ...top,
+      TextField(
+        controller: _title,
+        decoration: const InputDecoration(
+          labelText: 'Title (optional)',
+          hintText: 'Client walkthrough',
+        ),
+        maxLength: 200,
+        onChanged: (_) => setState(() {}),
+      ),
+      Row(
+        children: [
+          const PhosphorIcon(PhosphorIconsDuotone.calendarBlank, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _meetingAt == null
+                  ? 'Meeting date not set'
+                  : 'Met on ${DateFormat('EEE MMM d, y').format(_meetingAt!)}',
             ),
+          ),
+          TextButton(
+            onPressed: busy ? null : _pickMeetingDate,
+            child: const Text('Set date'),
+          ),
+          if (_meetingAt != null)
+            IconButton(
+              tooltip: 'Clear date',
+              onPressed: busy ? null : () => setState(() => _meetingAt = null),
+              icon: const PhosphorIcon(PhosphorIconsDuotone.x),
+            ),
+        ],
+      ),
+      const SizedBox(height: 8),
+      TextField(
+        controller: _body,
+        decoration: const InputDecoration(
+          labelText: 'Meeting notes',
+          hintText: 'Who met, what was agreed, numbers, times, dietary needs, follow-ups…',
+          alignLabelWithHint: true,
+        ),
+        minLines: 8,
+        maxLines: 24,
+        maxLength: _maxBody,
+        onChanged: (_) => setState(() {}),
+      ),
+      const SizedBox(height: 8),
+      Wrap(
+        spacing: AppSpace.s,
+        runSpacing: AppSpace.s,
+        children: [
+          FilledButton.icon(
+            onPressed: busy ? null : () => _analyze(),
+            icon: const PhosphorIcon(PhosphorIconsDuotone.sparkle),
+            label: Text(
+              _note?.analysis == null && _match == null
+                  ? 'Find the event and suggest changes'
+                  : 'Ask the assistant again',
+            ),
+          ),
+          OutlinedButton(
+            onPressed: busy || !_dirty ? null : _save,
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+      if (_dirty && _note?.analysis != null)
+        const Padding(
+          padding: EdgeInsets.only(top: 8),
+          child: Text(
+            'Saving edits clears the current suggestions.',
+            style: AppText.meta,
           ),
         ),
-        if (_note != null) ...[
-          const SizedBox(height: 16),
-          Text(
-            'Event',
-            style: theme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+      if (_note != null) ...[
+        const SectionHeading('Event'),
+        if (match != null && !match.chosenByAdministrator) ...[
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Tag(match.confidence.label, switch (match.confidence) {
+                MatchConfidence.high => Tone.accent,
+                _ => Tone.alert,
+              }),
+              const Text('Assistant match', style: AppText.meta),
+            ],
           ),
+          if (match.reason.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(match.reason),
+          ],
+          const SizedBox(height: 12),
+        ],
+        DropdownButtonFormField<String>(
+          key: ValueKey(_eventId),
+          initialValue: event?.id,
+          isExpanded: true,
+          decoration: const InputDecoration(labelText: 'Apply to event'),
+          items: [
+            for (final e in events)
+              DropdownMenuItem(
+                value: e.id,
+                child: Text(
+                  '${e.name} · ${DateFormat('MMM d').format(atVenue(e.serviceStart, ref.read(sessionProvider)?.timeZone ?? 'UTC'))}',
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+          onChanged: busy ? null : (id) => setState(() => _eventId = id),
+        ),
+        if (match != null && match.alternativeEventIds.isNotEmpty) ...[
           const SizedBox(height: 8),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (match != null && !match.chosenByAdministrator) ...[
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        StatusChip(
-                          label: match.confidence.label,
-                          color: switch (match.confidence) {
-                            MatchConfidence.high => AppColors.ready,
-                            MatchConfidence.medium => AppColors.attention,
-                            _ => AppColors.delayed,
-                          },
-                        ),
-                        const Text(
-                          'Assistant match',
-                          style: TextStyle(color: AppColors.charcoalMuted),
-                        ),
-                      ],
-                    ),
-                    if (match.reason.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Text(match.reason),
-                    ],
-                    const SizedBox(height: 12),
-                  ],
-                  DropdownButtonFormField<String>(
-                    key: ValueKey(_eventId),
-                    initialValue: event?.id,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Apply to event',
-                    ),
-                    items: [
-                      for (final e in events)
-                        DropdownMenuItem(
-                          value: e.id,
-                          child: Text(
-                            '${e.name} · ${DateFormat('MMM d').format(atVenue(e.serviceStart, ref.read(sessionProvider)?.timeZone ?? 'UTC'))}',
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                    ],
-                    onChanged: busy
+          const Text('Could also be:', style: AppText.meta),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              for (final id in match.alternativeEventIds)
+                if (events.where((e) => e.id == id).firstOrNull case final alt?)
+                  ActionChip(
+                    label: Text(alt.name),
+                    onPressed: busy
                         ? null
-                        : (id) => setState(() => _eventId = id),
+                        : () => setState(() => _eventId = alt.id),
                   ),
-                  if (match != null &&
-                      match.alternativeEventIds.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Could also be:',
-                      style: TextStyle(color: AppColors.charcoalMuted),
-                    ),
-                    const SizedBox(height: 4),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: [
-                        for (final id in match.alternativeEventIds)
-                          if (events.where((e) => e.id == id).firstOrNull
-                              case final alt?)
-                            ActionChip(
-                              label: Text(alt.name),
-                              onPressed: busy
-                                  ? null
-                                  : () => setState(() => _eventId = alt.id),
-                            ),
-                      ],
-                    ),
-                  ],
-                  if (event != null &&
-                      _changesForEventId != null &&
-                      !changesMatchEvent) ...[
-                    const SizedBox(height: 12),
-                    const Text(
-                      'The suggested changes were for a different event.',
-                      style: TextStyle(color: AppColors.attention),
-                    ),
-                    const SizedBox(height: 4),
-                    OutlinedButton.icon(
-                      onPressed: busy
-                          ? null
-                          : () => _analyze(eventId: event.id),
-                      icon: const Icon(Icons.auto_awesome),
-                      label: Text('Suggest changes for ${event.name}'),
-                    ),
-                  ] else if (event != null && _changesForEventId == null) ...[
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: busy
-                          ? null
-                          : () => _analyze(eventId: event.id),
-                      icon: const Icon(Icons.auto_awesome),
-                      label: const Text('Suggest changes for this event'),
-                    ),
-                  ],
-                ],
-              ),
+            ],
+          ),
+        ],
+        if (event != null &&
+            _changesForEventId != null &&
+            !changesMatchEvent) ...[
+          const SizedBox(height: 12),
+          const Text(
+            'The suggested changes were for a different event.',
+            style: TextStyle(color: AppColors.accent2700),
+          ),
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: busy ? null : () => _analyze(eventId: event.id),
+              icon: const PhosphorIcon(PhosphorIconsDuotone.sparkle),
+              label: Text('Suggest changes for ${event.name}'),
             ),
           ),
-          const SizedBox(height: 16),
-          Text(
-            'Added to the event',
-            style: theme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextField(
-                    controller: _summary,
-                    decoration: const InputDecoration(
-                      labelText: 'Summary',
-                      hintText: 'What the meeting decided, in a few sentences',
-                      alignLabelWithHint: true,
-                    ),
-                    minLines: 2,
-                    maxLines: 8,
-                    maxLength: 4000,
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Key details',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  for (var i = 0; i < _keyDetails.length; i++)
-                    ListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.circle, size: 8),
-                      title: Text(_keyDetails[i]),
-                      trailing: IconButton(
-                        tooltip: 'Remove',
-                        icon: const Icon(Icons.close),
-                        onPressed: () => setState(
-                          () => _keyDetails = [..._keyDetails]..removeAt(i),
-                        ),
-                      ),
-                    ),
-                  TextField(
-                    controller: _newDetail,
-                    decoration: InputDecoration(
-                      hintText: 'Add a detail',
-                      suffixIcon: IconButton(
-                        tooltip: 'Add',
-                        icon: const Icon(Icons.add),
-                        onPressed: _addDetail,
-                      ),
-                    ),
-                    onSubmitted: (_) => _addDetail(),
-                  ),
-                ],
-              ),
+        ] else if (event != null && _changesForEventId == null) ...[
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: busy ? null : () => _analyze(eventId: event.id),
+              icon: const PhosphorIcon(PhosphorIconsDuotone.sparkle),
+              label: const Text('Suggest changes for this event'),
             ),
           ),
-          const SizedBox(height: 16),
-          Text(
-            'Changes to make',
-            style: theme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+        ],
+        const SectionHeading('Added to the event'),
+        TextField(
+          controller: _summary,
+          decoration: const InputDecoration(
+            labelText: 'Summary',
+            hintText: 'What the meeting decided, in a few sentences',
+            alignLabelWithHint: true,
           ),
-          const SizedBox(height: 8),
-          if (!changesMatchEvent || _changes.isEmpty)
-            Text(
-              !changesMatchEvent
-                  ? 'Ask the assistant for suggestions, or apply the note with just the summary.'
-                  : 'The assistant found nothing in these notes that should change the event.',
-              style: const TextStyle(color: AppColors.charcoalMuted),
-            )
-          else
-            for (var i = 0; i < _changes.length; i++) _changeTile(i),
-          const SizedBox(height: 24),
-          FilledButton.icon(
+          minLines: 2,
+          maxLines: 8,
+          maxLength: 4000,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Key details',
+          style: AppText.body.copyWith(fontWeight: FontWeight.w600),
+        ),
+        for (var i = 0; i < _keyDetails.length; i++)
+          Row(
+            children: [
+              const PhosphorIcon(PhosphorIconsDuotone.circle, size: 8),
+              const SizedBox(width: 12),
+              Expanded(child: Text(_keyDetails[i])),
+              IconButton(
+                tooltip: 'Remove',
+                icon: const PhosphorIcon(PhosphorIconsDuotone.x),
+                onPressed: () =>
+                    setState(() => _keyDetails = [..._keyDetails]..removeAt(i)),
+              ),
+            ],
+          ),
+        TextField(
+          controller: _newDetail,
+          decoration: InputDecoration(
+            hintText: 'Add a detail',
+            suffixIcon: IconButton(
+              tooltip: 'Add',
+              icon: const PhosphorIcon(PhosphorIconsDuotone.plus),
+              onPressed: _addDetail,
+            ),
+          ),
+          onSubmitted: (_) => _addDetail(),
+        ),
+        const SectionHeading('Changes to make'),
+        if (!changesMatchEvent || _changes.isEmpty)
+          Text(
+            !changesMatchEvent
+                ? 'Ask the assistant for suggestions, or apply the note with just the summary.'
+                : 'The assistant found nothing in these notes that should change the event.',
+            style: AppText.meta,
+          )
+        else
+          for (var i = 0; i < _changes.length; i++) _changeTile(i),
+        const SizedBox(height: AppSpace.xl),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FilledButton.icon(
             onPressed: busy || event == null ? null : () => _apply(event),
-            icon: const Icon(Icons.check),
+            icon: const PhosphorIcon(PhosphorIconsDuotone.check),
             label: Text(
               event == null
                   ? 'Choose an event to apply'
@@ -749,9 +696,9 @@ class _MeetingNoteEditorScreenState
                   : 'Link note to event',
             ),
           ),
-        ],
+        ),
       ],
-    );
+    ]);
   }
 
   void _addDetail() {
@@ -767,155 +714,110 @@ class _MeetingNoteEditorScreenState
     final change = _changes[index];
     final accepted = _accepted.contains(index);
     final due = change.dueAt;
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(4, 8, 8, 8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Checkbox(
-              value: accepted,
-              onChanged: _busy != null
-                  ? null
-                  : (value) => setState(() {
-                      _accepted = {..._accepted};
-                      value == true
-                          ? _accepted.add(index)
-                          : _accepted.remove(index);
-                    }),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpace.row),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Checkbox(
+            value: accepted,
+            onChanged: _busy != null
+                ? null
+                : (value) => setState(() {
+                    _accepted = {..._accepted};
+                    value == true
+                        ? _accepted.add(index)
+                        : _accepted.remove(index);
+                  }),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(change.title, style: AppText.meta),
+                  const SizedBox(height: 2),
+                  Text(
+                    _displayText(change),
+                    style: AppText.body.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  if (change.detail case final detail?)
+                    Text(detail, style: AppText.meta),
+                  if (due != null)
+                    Text('Due ${_venueTime(due)}', style: AppText.meta),
+                  if (change.reason.isNotEmpty) ...[
+                    const SizedBox(height: 4),
                     Text(
-                      change.title,
-                      style: const TextStyle(
-                        color: AppColors.charcoalMuted,
-                        fontSize: 12,
-                      ),
+                      'From the notes: ${change.reason}',
+                      style: AppText.meta.copyWith(fontStyle: FontStyle.italic),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _displayText(change),
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    if (change.detail case final detail?)
-                      Text(
-                        detail,
-                        style: const TextStyle(color: AppColors.charcoalMuted),
-                      ),
-                    if (due != null)
-                      Text(
-                        'Due ${_venueTime(due)}',
-                        style: const TextStyle(color: AppColors.charcoalMuted),
-                      ),
-                    if (change.reason.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        'From the notes: ${change.reason}',
-                        style: const TextStyle(
-                          color: AppColors.charcoalMuted,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                    ],
                   ],
-                ),
+                ],
               ),
             ),
-            IconButton(
-              tooltip: 'Edit',
-              onPressed: _busy != null ? null : () => _editChange(index),
-              icon: const Icon(Icons.edit_outlined),
-            ),
-          ],
-        ),
+          ),
+          IconButton(
+            tooltip: 'Edit',
+            onPressed: _busy != null ? null : () => _editChange(index),
+            icon: const PhosphorIcon(PhosphorIconsDuotone.pencilSimple),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _appliedView(MeetingNote note) {
-    final theme = Theme.of(context).textTheme;
+  Widget _appliedView(MeetingNote note, List<Widget> top) {
     final event = _events().where((e) => e.id == note.eventId).firstOrNull;
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 48),
-      children: [
-        Card(
-          child: ListTile(
-            leading: const Icon(
-              Icons.check_circle_outline,
-              color: AppColors.ready,
-            ),
-            title: Text(event == null ? 'Applied' : 'Applied to ${event.name}'),
-            subtitle: note.appliedAt == null
-                ? null
-                : Text(_venueTime(note.appliedAt!)),
-            trailing: event == null
-                ? null
-                : TextButton(
-                    onPressed: () => context.push('/events/${event.id}'),
-                    child: const Text('Open event'),
-                  ),
-          ),
+    return _page([
+      ...top,
+      OpenRow(
+        leading: const PhosphorIcon(
+          PhosphorIconsDuotone.checkCircle,
+          color: AppColors.accent700,
         ),
-        if (note.summary.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          Text(
-            'Summary',
-            style: theme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
-          Text(note.summary),
-        ],
-        if (note.keyDetails.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          Text(
-            'Key details',
-            style: theme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
-          for (final detail in note.keyDetails)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Text('•  $detail'),
-            ),
-        ],
-        const SizedBox(height: 16),
-        Text(
-          'Changes made',
-          style: theme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 8),
-        if (note.appliedChanges.isEmpty)
-          const Text(
-            'None. The note was linked to the event only.',
-            style: TextStyle(color: AppColors.charcoalMuted),
-          )
-        else
-          for (final change in note.appliedChanges)
-            Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                title: Text(_displayText(change)),
-                subtitle: Text(change.title),
+        title: event == null ? 'Applied' : 'Applied to ${event.name}',
+        meta: note.appliedAt == null ? null : _venueTime(note.appliedAt!),
+        trailing: event == null
+            ? null
+            : TextButton(
+                onPressed: () => context.push('/events/${event.id}'),
+                child: const Text('Open event'),
               ),
-            ),
-        const SizedBox(height: 16),
-        ExpansionTile(
-          tilePadding: EdgeInsets.zero,
-          title: const Text('Original notes'),
-          children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: SelectableText(note.body),
-            ),
-          ],
-        ),
+      ),
+      if (note.summary.isNotEmpty) ...[
+        const SectionHeading('Summary'),
+        Text(note.summary, style: AppText.body),
       ],
-    );
+      if (note.keyDetails.isNotEmpty) ...[
+        const SectionHeading('Key details'),
+        for (final detail in note.keyDetails)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text('•  $detail', style: AppText.body),
+          ),
+      ],
+      const SectionHeading('Changes made'),
+      if (note.appliedChanges.isEmpty)
+        const Text(
+          'None. The note was linked to the event only.',
+          style: AppText.meta,
+        )
+      else
+        for (final change in note.appliedChanges)
+          OpenRow(title: _displayText(change), meta: change.title),
+      const SizedBox(height: AppSpace.section),
+      ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        title: const Text('Original notes'),
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SelectableText(note.body),
+          ),
+        ],
+      ),
+    ]);
   }
 }

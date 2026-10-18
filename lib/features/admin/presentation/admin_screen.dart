@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:go_router/go_router.dart';
+
+import '../../../core/icons/phosphor.dart';
 
 import '../../../core/permissions/app_permission.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/broadsheet.dart';
 import '../../auth/application/session_controller.dart';
 import '../../dispatch/application/dispatch_providers.dart';
 import '../../dispatch/domain/service_request.dart';
@@ -27,106 +29,72 @@ class AdminScreen extends ConsumerWidget {
       AppPermission.manageConfiguration,
     );
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Administration & Configuration')),
+    return PageScaffold(
+      kicker: 'Administration',
+      title: 'Administration & Configuration',
       floatingActionButton: canConfigure && backendAvailable && session != null
           ? FloatingActionButton.extended(
               onPressed: () => _addSuite(context, ref, session.venueId),
-              icon: const Icon(Icons.add),
+              icon: const PhosphorIcon(PhosphorIconsDuotone.plus),
               label: const Text('Add space'),
             )
           : null,
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-        children: [
-          Text('Venue', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          Card(
-            child: ListTile(
-              title: Text(session?.venueName ?? '—'),
-              subtitle: Text('Time zone: ${session?.timeZone ?? '—'}'),
+      children: [
+        const SectionHeading('Venue', first: true),
+        OpenRow(
+          title: session?.venueName ?? '—',
+          meta: 'Time zone: ${session?.timeZone ?? '—'}',
+        ),
+        if (canConfigure && backendAvailable) ...[
+          const SizedBox(height: 12),
+          OpenRow(
+            leading: const PhosphorIcon(
+              PhosphorIconsDuotone.identificationBadge,
+              color: AppColors.accent700,
             ),
+            title: 'Staff accounts',
+            meta: 'Add staff, reset PINs, deactivate or remove accounts',
+            trailing: const PhosphorIcon(PhosphorIconsDuotone.caretRight),
+            onTap: () => context.push('/staff'),
           ),
-          if (canConfigure && backendAvailable) ...[
-            const SizedBox(height: 12),
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.badge_outlined),
-                title: const Text('Staff accounts'),
-                subtitle: const Text(
-                  'Add staff, reset PINs, deactivate or remove accounts',
-                ),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.push('/staff'),
-              ),
-            ),
-          ],
-          if (backendAvailable && session != null) ...[
-            const SizedBox(height: 20),
-            BanquetAreasSection(
-              venueId: session.venueId,
-              canConfigure: canConfigure,
-              canManageEvents: permissions.contains(AppPermission.manageEvents),
-            ),
-          ],
-          const SizedBox(height: 20),
-          Text('Suites', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          if (!backendAvailable)
-            const Text(
-              'Connect a backend to manage suites.',
-              style: TextStyle(color: AppColors.charcoalMuted),
-            )
-          else if (session == null)
-            const SizedBox.shrink()
-          else ...[
-            _ServiceSuiteCountCard(
-              venueId: session.venueId,
-              canConfigure: canConfigure,
-            ),
-            const SizedBox(height: 8),
-            _SuiteList(venueId: session.venueId, canConfigure: canConfigure),
-          ],
-          const SizedBox(height: 20),
-          if (backendAvailable && session != null && canConfigure) ...[
-            PeopleSection(
-              venueId: session.venueId,
-              currentUserId: session.userId,
-            ),
-            const SizedBox(height: 20),
-          ],
-          Text(
-            'Escalation limits',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          if (!backendAvailable)
-            const Text(
-              'Connect a backend to change escalation limits.',
-              style: TextStyle(color: AppColors.charcoalMuted),
-            )
-          else if (session != null && canConfigure)
-            _EscalationEditor(venueId: session.venueId)
-          else
-            const Text(
-              'Only managers can change escalation limits.',
-              style: TextStyle(color: AppColors.charcoalMuted),
-            ),
-          const SizedBox(height: 20),
-          Text(
-            'Checklist library',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          if (!backendAvailable)
-            const Text(
-              'Connect a backend to view checklists.',
-              style: TextStyle(color: AppColors.charcoalMuted),
-            )
-          else
-            const _TemplateList(),
         ],
-      ),
+        if (backendAvailable && session != null)
+          BanquetAreasSection(
+            venueId: session.venueId,
+            canConfigure: canConfigure,
+            canManageEvents: permissions.contains(AppPermission.manageEvents),
+          ),
+        const SectionHeading('Suites'),
+        if (!backendAvailable)
+          const EmptyNote('Connect a backend to manage suites.')
+        else if (session == null)
+          const SizedBox.shrink()
+        else ...[
+          _ServiceSuiteCountCard(
+            venueId: session.venueId,
+            canConfigure: canConfigure,
+          ),
+          const SizedBox(height: 12),
+          _SuiteList(venueId: session.venueId, canConfigure: canConfigure),
+        ],
+        if (backendAvailable && session != null && canConfigure)
+          PeopleSection(
+            venueId: session.venueId,
+            currentUserId: session.userId,
+          ),
+        const SectionHeading('Escalation limits'),
+        if (!backendAvailable)
+          const EmptyNote('Connect a backend to change escalation limits.')
+        else if (session != null && canConfigure)
+          _EscalationEditor(venueId: session.venueId)
+        else
+          const EmptyNote('Only managers can change escalation limits.'),
+        const SectionHeading('Checklist library'),
+        if (!backendAvailable)
+          const EmptyNote('Connect a backend to view checklists.')
+        else
+          const _TemplateList(),
+      ],
     );
   }
 
@@ -199,28 +167,27 @@ class _ServiceSuiteCountCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final count = ref.watch(serviceSuiteCountProvider(venueId));
     final profiles = ref.watch(venueSuitesProvider(venueId));
-    return Card(
-      child: ListTile(
-        leading: const Icon(Icons.meeting_room_outlined),
-        title: count.when(
-          loading: () => const Text('Loading suite service count…'),
-          error: (_, _) => const Text('Suite service count unavailable'),
-          data: (value) => Text(
-            value == null
-                ? 'Suite service count not set'
-                : '$value luxury suites available for service',
-          ),
-        ),
-        subtitle: profiles.when(
-          loading: () => null,
-          error: (_, _) => null,
-          data: (list) => Text('${list.length} suite profiles configured'),
-        ),
-        trailing: canConfigure ? const Icon(Icons.edit_outlined) : null,
-        onTap: canConfigure
-            ? () => _editCount(context, ref, count.value)
-            : null,
+    return OpenRow(
+      leading: const PhosphorIcon(
+        PhosphorIconsDuotone.door,
+        color: AppColors.accent700,
       ),
+      title: count.when(
+        loading: () => 'Loading suite service count…',
+        error: (_, _) => 'Suite service count unavailable',
+        data: (value) => value == null
+            ? 'Suite service count not set'
+            : '$value luxury suites available for service',
+      ),
+      meta: profiles.when(
+        loading: () => null,
+        error: (_, _) => null,
+        data: (list) => '${list.length} suite profiles configured',
+      ),
+      trailing: canConfigure
+          ? const PhosphorIcon(PhosphorIconsDuotone.pencilSimple)
+          : null,
+      onTap: canConfigure ? () => _editCount(context, ref, count.value) : null,
     );
   }
 
@@ -270,42 +237,36 @@ class _EscalationEditor extends ConsumerWidget {
       data: (map) => Column(
         children: [
           for (final p in RequestPriority.values)
-            Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                title: Text(p.label),
-                subtitle: Text(
+            OpenRow(
+              title: p.label,
+              meta:
                   'Escalates after ${map[p]!.inMinutes} minutes without acknowledgment',
-                ),
-                trailing: const Icon(Icons.edit_outlined),
-                onTap: () async {
-                  final text = await showDialog<String>(
-                    context: context,
-                    builder: (_) => _MinutesDialog(
-                      title: '${p.label} escalation (minutes)',
-                      initial: '${map[p]!.inMinutes}',
+              trailing: const PhosphorIcon(PhosphorIconsDuotone.pencilSimple),
+              onTap: () async {
+                final text = await showDialog<String>(
+                  context: context,
+                  builder: (_) => _MinutesDialog(
+                    title: '${p.label} escalation (minutes)',
+                    initial: '${map[p]!.inMinutes}',
+                  ),
+                );
+                if (text == null || !context.mounted) return;
+                final minutes = int.tryParse(text);
+                if (minutes == null || minutes < 1 || minutes > 1440) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Enter whole minutes between 1 and 1440.'),
                     ),
                   );
-                  if (text == null || !context.mounted) return;
-                  final minutes = int.tryParse(text);
-                  if (minutes == null || minutes < 1 || minutes > 1440) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Enter whole minutes between 1 and 1440.',
-                        ),
-                      ),
-                    );
-                    return;
-                  }
-                  await runWrite(context, () async {
-                    await ref
-                        .read(dispatchRepositoryProvider)
-                        .setEscalationThreshold(venueId, p, minutes);
-                    ref.invalidate(escalationThresholdsProvider);
-                  }, success: '${p.label} escalation set to $minutes minutes.');
-                },
-              ),
+                  return;
+                }
+                await runWrite(context, () async {
+                  await ref
+                      .read(dispatchRepositoryProvider)
+                      .setEscalationThreshold(venueId, p, minutes);
+                  ref.invalidate(escalationThresholdsProvider);
+                }, success: '${p.label} escalation set to $minutes minutes.');
+              },
             ),
         ],
       ),
@@ -369,35 +330,27 @@ class _SuiteList extends ConsumerWidget {
       error: (error, _) => Text('$error'),
       data: (list) {
         if (list.isEmpty) {
-          return const Text(
-            'No suites yet.',
-            style: TextStyle(color: AppColors.charcoalMuted),
-          );
+          return const EmptyNote('No suites yet.');
         }
         return Column(
           children: [
             for (final s in list)
-              Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  title: Text(s['name'] as String),
-                  subtitle: Text(
-                    [
-                      _positionLabel(s),
-                      if ((s['location'] as String?)?.isNotEmpty ?? false)
-                        s['location'] as String,
-                      if ((s['service_zone'] as String?)?.isNotEmpty ?? false)
-                        'Zone ${s['service_zone']}',
-                      if (s['capacity'] != null) 'Capacity ${s['capacity']}',
-                    ].join(' · '),
-                  ),
-                  trailing: canConfigure
-                      ? const Icon(Icons.edit_outlined)
-                      : null,
-                  onTap: canConfigure
-                      ? () => _editSpace(context, ref, venueId, space: s)
-                      : null,
-                ),
+              OpenRow(
+                title: s['name'] as String,
+                meta: [
+                  _positionLabel(s),
+                  if ((s['location'] as String?)?.isNotEmpty ?? false)
+                    s['location'] as String,
+                  if ((s['service_zone'] as String?)?.isNotEmpty ?? false)
+                    'Zone ${s['service_zone']}',
+                  if (s['capacity'] != null) 'Capacity ${s['capacity']}',
+                ].join(' · '),
+                trailing: canConfigure
+                    ? const PhosphorIcon(PhosphorIconsDuotone.pencilSimple)
+                    : null,
+                onTap: canConfigure
+                    ? () => _editSpace(context, ref, venueId, space: s)
+                    : null,
               ),
           ],
         );
@@ -429,23 +382,31 @@ class _TemplateList extends ConsumerWidget {
       data: (list) => Column(
         children: [
           for (final t in list)
-            Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ExpansionTile(
-                title: Text(t.name),
-                subtitle: Text('${t.items.length} items'),
-                children: [
-                  for (final item in t.items)
-                    ListTile(
-                      dense: true,
-                      title: Text(item.label),
-                      subtitle: Text(
-                        '${item.responseType.replaceAll('_', ' ')}'
-                        '${item.requiresManagerApproval ? ' · needs manager approval' : ''}',
-                      ),
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              childrenPadding: const EdgeInsets.only(bottom: 12),
+              shape: const Border(),
+              collapsedShape: const Border(),
+              expandedCrossAxisAlignment: CrossAxisAlignment.start,
+              title: Text(t.name, style: AppText.rowTitle),
+              subtitle: Text('${t.items.length} items', style: AppText.meta),
+              children: [
+                for (final item in t.items)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(item.label, style: AppText.body),
+                        Text(
+                          '${item.responseType.replaceAll('_', ' ')}'
+                          '${item.requiresManagerApproval ? ' · needs manager approval' : ''}',
+                          style: AppText.meta,
+                        ),
+                      ],
                     ),
-                ],
-              ),
+                  ),
+              ],
             ),
         ],
       ),

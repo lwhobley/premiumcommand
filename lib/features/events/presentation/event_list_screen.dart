@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import '../../../core/theme/app_theme.dart';
+import '../../../core/icons/phosphor.dart';
+
 import '../../../core/time/venue_time.dart';
-import '../../../core/widgets/status_chip.dart';
+import '../../../core/widgets/broadsheet.dart';
+import '../../../core/widgets/tag.dart';
 import '../../auth/application/session_controller.dart';
 import '../application/event_providers.dart';
 
@@ -18,42 +20,32 @@ class EventListScreen extends ConsumerWidget {
     final snapshots = ref.watch(eventSnapshotsProvider);
     final zone = ref.watch(sessionProvider)?.timeZone ?? 'UTC';
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Event Workspace')),
+    return PageScaffold(
+      kicker: 'Events',
+      title: 'Event Workspace',
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.go('/events/new'),
-        icon: const Icon(Icons.add),
+        icon: const PhosphorIcon(PhosphorIconsDuotone.plus),
         label: const Text('New event'),
       ),
-      body: snapshots.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('Could not load events. $error')),
+      children: snapshots.when(
+        loading: () => const [LinearProgressIndicator()],
+        error: (error, _) => [Text('Could not load events. $error')],
         data: (items) {
-          if (items.isEmpty) {
-            return const Center(child: Text('No events yet.'));
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: items.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 8),
-            itemBuilder: (context, index) {
-              final snapshot = items[index];
-              final event = snapshot.event;
-              return Card(
-                child: ListTile(
-                  title: Text(event.name),
-                  subtitle: Text(
-                    '${DateFormat('EEE MMM d, h:mm a').format(atVenue(event.serviceStart, zone))} $zone · ${event.type.label}',
-                  ),
-                  trailing: StatusChip(
-                    label: '${(snapshot.overallPercent * 100).round()}% ready',
-                    color: snapshot.overallPercent >= 1 ? AppColors.ready : AppColors.inProgress,
-                  ),
-                  onTap: () => context.go('/events/${event.id}'),
+          if (items.isEmpty) return const [EmptyNote('No events yet.')];
+          return [
+            for (final snapshot in items)
+              OpenRow(
+                title: snapshot.event.name,
+                meta:
+                    '${DateFormat('EEE MMM d, h:mm a').format(atVenue(snapshot.event.serviceStart, zone))} $zone · ${snapshot.event.type.label}',
+                trailing: Tag(
+                  '${(snapshot.overallPercent * 100).round()}% ready',
+                  Tone.accent,
                 ),
-              );
-            },
-          );
+                onTap: () => context.go('/events/${snapshot.event.id}'),
+              ),
+          ];
         },
       ),
     );

@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/icons/phosphor.dart';
+
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/broadsheet.dart';
 import '../../planning/presentation/planning_widgets.dart';
 import '../data/banquet_area_repository.dart';
 import '../domain/banquet_area.dart';
@@ -26,70 +29,57 @@ class BanquetAreasSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Banquet areas',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ),
-            if (canConfigure)
-              TextButton.icon(
-                onPressed: () => _edit(context, ref),
-                icon: const Icon(Icons.add),
-                label: const Text('Add area'),
-              ),
-          ],
+        SectionHeading(
+          'Banquet areas',
+          trailing: canConfigure
+              ? TextButton.icon(
+                  onPressed: () => _edit(context, ref),
+                  icon: const PhosphorIcon(PhosphorIconsDuotone.plus),
+                  label: const Text('Add area'),
+                )
+              : null,
         ),
-        const SizedBox(height: 8),
         areas.when(
           loading: () => const LinearProgressIndicator(),
-          error: (_, _) => const Text(
-            'Banquet areas unavailable.',
-            style: TextStyle(color: AppColors.charcoalMuted),
-          ),
+          error: (_, _) => const EmptyNote('Banquet areas unavailable.'),
           data: (items) => items.isEmpty
-              ? const Text(
-                  'No banquet areas configured.',
-                  style: TextStyle(color: AppColors.charcoalMuted),
-                )
+              ? const EmptyNote('No banquet areas configured.')
               : Column(
                   children: [
                     for (final area in items)
-                      Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: ListTile(
-                          title: Text(area.name),
-                          subtitle: Text(_description(area)),
-                          isThreeLine: area.canCombine,
-                          trailing: Wrap(
-                            spacing: 4,
-                            children: [
-                              IconButton(
-                                tooltip: 'View area BEOs',
-                                onPressed: () => showBanquetAreaBeoLinks(
-                                  context,
-                                  area: area,
-                                  venueId: venueId,
-                                  canManage: canManageEvents,
-                                ),
-                                icon: const Icon(Icons.description_outlined),
+                      OpenRow(
+                        title: area.name,
+                        meta: _description(area),
+                        trailing: Wrap(
+                          spacing: 4,
+                          children: [
+                            IconButton(
+                              tooltip: 'View area BEOs',
+                              onPressed: () => showBanquetAreaBeoLinks(
+                                context,
+                                area: area,
+                                venueId: venueId,
+                                canManage: canManageEvents,
                               ),
-                              if (canConfigure)
-                                IconButton(
-                                  tooltip: 'Edit area',
-                                  onPressed: () => _edit(context, ref, area),
-                                  icon: const Icon(Icons.edit_outlined),
+                              icon: const PhosphorIcon(
+                                PhosphorIconsDuotone.fileText,
+                              ),
+                            ),
+                            if (canConfigure)
+                              IconButton(
+                                tooltip: 'Edit area',
+                                onPressed: () => _edit(context, ref, area),
+                                icon: const PhosphorIcon(
+                                  PhosphorIconsDuotone.pencilSimple,
                                 ),
-                            ],
-                          ),
-                          onTap: () => showBanquetAreaBeoLinks(
-                            context,
-                            area: area,
-                            venueId: venueId,
-                            canManage: canManageEvents,
-                          ),
+                              ),
+                          ],
+                        ),
+                        onTap: () => showBanquetAreaBeoLinks(
+                          context,
+                          area: area,
+                          venueId: venueId,
+                          canManage: canManageEvents,
                         ),
                       ),
                   ],
@@ -235,7 +225,10 @@ class _AreaDialogState extends State<_AreaDialog> {
                 decoration: const InputDecoration(labelText: 'Area type'),
                 items: [
                   if (!_kinds.containsKey(_kind))
-                    DropdownMenuItem(value: _kind, child: Text('Current type: $_kind')),
+                    DropdownMenuItem(
+                      value: _kind,
+                      child: Text('Current type: $_kind'),
+                    ),
                   for (final entry in _kinds.entries)
                     DropdownMenuItem(
                       value: entry.key,
@@ -290,7 +283,7 @@ class _AreaDialogState extends State<_AreaDialog> {
               if (_error != null)
                 Text(
                   _error!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                  style: AppText.body.copyWith(color: AppColors.accent2700),
                 ),
             ],
           ),

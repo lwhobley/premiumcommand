@@ -3,10 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/icons/phosphor.dart';
+
 import '../../../core/permissions/app_permission.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/time/venue_time.dart';
-import '../../../core/widgets/status_chip.dart';
+import '../../../core/widgets/broadsheet.dart';
+import '../../../core/widgets/tag.dart';
 import '../../auth/application/session_controller.dart';
 import '../../planning/application/planning_providers.dart';
 import '../../planning/presentation/planning_widgets.dart';
@@ -17,23 +20,41 @@ import 'suite_map_view.dart';
 
 /// How a suite is shown on the map for one event.
 enum SuiteMapStatus {
-  unassigned('Not in this event', Color(0xFFD9D4CA)),
-  noOrder('No order', AppColors.attention),
-  draft('Order draft', AppColors.inProgress),
-  confirmed('Order confirmed', AppColors.ready),
-  delivered('Delivered', AppColors.neutral);
+  unassigned('Not in this event', AppColors.neutral200, Tone.neutral),
+  noOrder('No order', AppColors.neutral400, Tone.neutral),
+  draft('Order draft', AppColors.neutral600, Tone.neutral),
+  confirmed('Order confirmed', AppColors.accent, Tone.accent),
+  delivered('Delivered', AppColors.accent700, Tone.accent);
 
-  const SuiteMapStatus(this.label, this.color);
+  const SuiteMapStatus(this.label, this.color, this.tone);
 
   final String label;
+
+  /// Map fill, sent to the 3D page as hex.
   final Color color;
+
+  /// Tag tone for the same status.
+  final Tone tone;
 }
 
+/// Suite tile and map fill by state.
 Color suiteStateColor(SuiteState state) => switch (state) {
-  SuiteState.ready || SuiteState.inService => AppColors.ready,
-  SuiteState.setupInProgress || SuiteState.closing => AppColors.inProgress,
-  SuiteState.notStarted => AppColors.attention,
-  SuiteState.closed => AppColors.neutral,
+  SuiteState.notStarted => AppColors.neutral300,
+  SuiteState.setupInProgress => AppColors.accent300,
+  SuiteState.ready => AppColors.accent,
+  SuiteState.inService => AppColors.accent700,
+  SuiteState.closing => AppColors.accent2300,
+  SuiteState.closed => AppColors.neutral400,
+};
+
+/// Tag tone for a suite state: ready, in service and setup are accent; the rest neutral.
+Tone suiteStateTone(SuiteState state) => switch (state) {
+  SuiteState.setupInProgress ||
+  SuiteState.ready ||
+  SuiteState.inService => Tone.accent,
+  SuiteState.notStarted ||
+  SuiteState.closing ||
+  SuiteState.closed => Tone.neutral,
 };
 
 /// Map status by map area (suite number or club). Spaces missing from the result are
@@ -170,68 +191,61 @@ class _SuiteMapSectionState extends ConsumerState<SuiteMapSection> {
         ref.watch(suiteOrdersProvider(widget.eventId)).value ?? const [];
     final statuses = suiteMapStatuses(assignments, orders);
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Premium level map',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Tap a suite, club, or the arena floor to open its order and the event BEO. Drag to rotate; pinch or scroll to zoom.',
-            style: TextStyle(color: AppColors.charcoalMuted, fontSize: 13),
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 12,
-            runSpacing: 6,
-            children: [
-              for (final status in SuiteMapStatus.values)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: status.color,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionHeading('Premium level map'),
+        const Text(
+          'Tap a suite, club, or the arena floor to open its order and the event BEO. Drag to rotate; pinch or scroll to zoom.',
+          style: AppText.meta,
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: AppSpace.m,
+          runSpacing: 6,
+          children: [
+            for (final status in SuiteMapStatus.values)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: status.color,
+                      borderRadius: AppRadius.all,
                     ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${status.label} (${status == SuiteMapStatus.unassigned ? premiumLevelAreaCount - statuses.length : statuses.values.where((s) => s == status).length})',
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                  ],
-                ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: SizedBox(
-              height: 460,
-              child: SuiteMapView(
-                sceneData: buildSuiteMapScene(
-                  statuses,
-                  selected: _selected,
-                  labels: mapLabelsFor(venueSuites),
-                ),
-                onSuiteTap: _open,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${status.label} (${status == SuiteMapStatus.unassigned ? premiumLevelAreaCount - statuses.length : statuses.values.where((s) => s == status).length})',
+                    style: AppText.meta,
+                  ),
+                ],
               ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        ClipRRect(
+          borderRadius: AppRadius.all,
+          child: SizedBox(
+            height: 460,
+            child: SuiteMapView(
+              sceneData: buildSuiteMapScene(
+                statuses,
+                selected: _selected,
+                labels: mapLabelsFor(venueSuites),
+              ),
+              onSuiteTap: _open,
             ),
           ),
-          const SizedBox(height: 6),
-          const Text(
-            'Traced from the labeled premium-level plan. The arena floor is the open center; proportional, not to scale.',
-            style: TextStyle(fontSize: 12, color: AppColors.charcoalMuted),
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Traced from the labeled premium-level plan. The arena floor is the open center; proportional, not to scale.',
+          style: AppText.meta,
+        ),
+      ],
     );
   }
 
@@ -307,7 +321,12 @@ class _SuitePanel extends ConsumerWidget {
 
     return SafeArea(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpace.screen,
+          0,
+          AppSpace.screen,
+          AppSpace.screen,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -321,15 +340,18 @@ class _SuitePanel extends ConsumerWidget {
                       : club == null
                       ? 'Suite $areaId'
                       : club.label),
-              style: Theme.of(context).textTheme.titleLarge,
+              style: AppText.sectionHeading,
             ),
             const SizedBox(height: 10),
             if (venueSuite == null)
-              Text('The $noun is not set up as a service area yet.')
+              Text(
+                'The $noun is not set up as a service area yet.',
+                style: AppText.body,
+              )
             else if (assignment == null) ...[
-              const Text(
+              Text(
                 'Not assigned to this event.',
-                style: TextStyle(color: AppColors.charcoalMuted),
+                style: AppText.body.copyWith(color: AppColors.muted),
               ),
               if (canManage) ...[
                 const SizedBox(height: 12),
@@ -344,7 +366,7 @@ class _SuitePanel extends ConsumerWidget {
                         );
                     ref.invalidate(suitesProvider(eventId));
                   }, success: 'Added to the event.'),
-                  icon: const Icon(Icons.add),
+                  icon: const PhosphorIcon(PhosphorIconsDuotone.plus),
                   label: const Text('Add to this event'),
                 ),
               ],
@@ -353,21 +375,18 @@ class _SuitePanel extends ConsumerWidget {
                 spacing: 8,
                 runSpacing: 6,
                 children: [
-                  StatusChip(
-                    label: assignment.state.label,
-                    color: suiteStateColor(assignment.state),
-                  ),
-                  StatusChip(
-                    label: order == null
+                  Tag(assignment.state.label, suiteStateTone(assignment.state)),
+                  Tag(
+                    order == null
                         ? 'No order'
                         : 'Order ${order.status.label.toLowerCase()}',
-                    color: switch (order?.status) {
-                      null => SuiteMapStatus.noOrder.color,
-                      SuiteOrderStatus.draft => SuiteMapStatus.draft.color,
+                    switch (order?.status) {
+                      null => SuiteMapStatus.noOrder.tone,
+                      SuiteOrderStatus.draft => SuiteMapStatus.draft.tone,
                       SuiteOrderStatus.confirmed =>
-                        SuiteMapStatus.confirmed.color,
+                        SuiteMapStatus.confirmed.tone,
                       SuiteOrderStatus.delivered =>
-                        SuiteMapStatus.delivered.color,
+                        SuiteMapStatus.delivered.tone,
                     },
                   ),
                 ],
@@ -379,50 +398,43 @@ class _SuitePanel extends ConsumerWidget {
                   if (assignment.guestContact.isNotEmpty)
                     'Contact: ${assignment.guestContact}',
                 ].join(' · '),
-                style: const TextStyle(
-                  color: AppColors.charcoalMuted,
-                  fontSize: 13,
-                ),
+                style: AppText.meta,
               ),
               if (assignment.dietaryNotes.isNotEmpty) ...[
                 const SizedBox(height: 4),
                 Text(
                   'Dietary: ${assignment.dietaryNotes}',
-                  style: const TextStyle(fontSize: 13),
+                  style: AppText.body,
                 ),
               ],
-              const Divider(height: 28),
-              Text('Order', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 6),
+              const SectionHeading('Order'),
               if (order == null)
-                const Text(
+                Text(
                   'No order yet.',
-                  style: TextStyle(color: AppColors.charcoalMuted),
+                  style: AppText.body.copyWith(color: AppColors.muted),
                 )
               else ...[
                 if (order.deliverAt != null)
                   Text(
                     'Deliver ${DateFormat('EEE MMM d, h:mm a').format(atVenue(order.deliverAt!, timeZone))}',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                    style: AppText.body.copyWith(fontWeight: FontWeight.w600),
                   ),
                 if (order.items.isEmpty)
-                  const Text(
+                  Text(
                     'No items yet.',
-                    style: TextStyle(color: AppColors.charcoalMuted),
+                    style: AppText.body.copyWith(color: AppColors.muted),
                   ),
                 for (final item in order.items)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
                       '${item.quantity} × ${item.name}${item.notes.isEmpty ? '' : ' — ${item.notes}'}',
+                      style: AppText.body,
                     ),
                   ),
                 if (order.notes.isNotEmpty) ...[
                   const SizedBox(height: 6),
-                  Text(
-                    'Notes: ${order.notes}',
-                    style: const TextStyle(fontSize: 13),
-                  ),
+                  Text('Notes: ${order.notes}', style: AppText.meta),
                 ],
               ],
               const SizedBox(height: 14),
@@ -434,7 +446,9 @@ class _SuitePanel extends ConsumerWidget {
                     OutlinedButton.icon(
                       onPressed: () =>
                           _editOrder(context, ref, assignment, order, timeZone),
-                      icon: const Icon(Icons.edit_outlined),
+                      icon: const PhosphorIcon(
+                        PhosphorIconsDuotone.pencilSimple,
+                      ),
                       label: Text(order == null ? 'Start order' : 'Edit order'),
                     ),
                   if (canManage &&
@@ -464,14 +478,17 @@ class _SuitePanel extends ConsumerWidget {
                 ],
               ),
             ],
-            const Divider(height: 28),
-            TextButton.icon(
-              onPressed: () {
-                Navigator.of(context).pop();
-                context.push('/beo/event/$eventId');
-              },
-              icon: const Icon(Icons.description_outlined),
-              label: const Text('Open this event’s BEO'),
+            const SizedBox(height: AppSpace.l),
+            Transform.translate(
+              offset: const Offset(-10, 0),
+              child: TextButton.icon(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  context.push('/beo/event/$eventId');
+                },
+                icon: const PhosphorIcon(PhosphorIconsDuotone.fileText),
+                label: const Text('Open this event’s BEO'),
+              ),
             ),
           ],
         ),
@@ -667,14 +684,14 @@ class _SuiteOrderDialogState extends State<_SuiteOrderDialog> {
                             (_) => removed.dispose(),
                           );
                         },
-                        icon: const Icon(Icons.close),
+                        icon: const PhosphorIcon(PhosphorIconsDuotone.x),
                       ),
                     ],
                   ),
                 ),
               TextButton.icon(
                 onPressed: () => setState(() => _items.add(_ItemFields())),
-                icon: const Icon(Icons.add),
+                icon: const PhosphorIcon(PhosphorIconsDuotone.plus),
                 label: const Text('Add item'),
               ),
               const SizedBox(height: 8),
@@ -703,7 +720,7 @@ class _SuiteOrderDialogState extends State<_SuiteOrderDialog> {
                     IconButton(
                       tooltip: 'Clear delivery time',
                       onPressed: () => setState(() => _deliverAt = null),
-                      icon: const Icon(Icons.close),
+                      icon: const PhosphorIcon(PhosphorIconsDuotone.x),
                     ),
                 ],
               ),
@@ -715,7 +732,10 @@ class _SuiteOrderDialogState extends State<_SuiteOrderDialog> {
               ),
               if (_error != null) ...[
                 const SizedBox(height: 10),
-                Text(_error!, style: const TextStyle(color: AppColors.blocked)),
+                Text(
+                  _error!,
+                  style: AppText.body.copyWith(color: AppColors.accent2700),
+                ),
               ],
             ],
           ),

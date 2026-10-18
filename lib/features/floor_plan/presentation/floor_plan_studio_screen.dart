@@ -3,8 +3,11 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/icons/phosphor.dart';
+
 import '../../../core/permissions/app_permission.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/broadsheet.dart';
 import '../../auth/application/session_controller.dart';
 import '../../planning/presentation/planning_widgets.dart';
 import '../application/floor_plan_providers.dart';
@@ -28,84 +31,71 @@ class FloorPlanStudioScreen extends ConsumerWidget {
     if (session == null) return const SizedBox.shrink();
     final spacesAsync = ref.watch(venueSpacesProvider(session.venueId));
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Floor Plan Studio')),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          BanquetArea3DOverview(
-            venueId: session.venueId,
-            canManageAreaLinks: session.permissions.contains(
-              AppPermission.manageEvents,
-            ),
+    return PageScaffold(
+      kicker: 'Venue',
+      title: 'Floor Plan Studio',
+      children: [
+        BanquetArea3DOverview(
+          venueId: session.venueId,
+          canManageAreaLinks: session.permissions.contains(
+            AppPermission.manageEvents,
           ),
-          const Divider(height: 40),
-          Text(
-            'Measured floor plans',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Enter measured width and depth before generating a seating layout. Square footage alone does not establish a room shape.',
-            style: TextStyle(color: AppColors.charcoalMuted),
-          ),
-          const SizedBox(height: 12),
-          spacesAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => Center(child: Text('$error')),
-            data: (spaces) {
-              if (spaces.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Text(
-                    'No individually named spaces are configured for measured floor plans yet.',
-                    style: TextStyle(color: AppColors.charcoalMuted),
-                  ),
-                );
-              }
-              final selectedId = ref.watch(selectedVenueSpaceIdProvider);
-              final current = spaces.any((s) => s.id == selectedId)
-                  ? selectedId!
-                  : spaces.first.id;
-              if (current != selectedId) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  ref
+        ),
+        const SectionHeading('Measured floor plans'),
+        const Text(
+          'Enter measured width and depth before generating a seating layout. Square footage alone does not establish a room shape.',
+          style: AppText.meta,
+        ),
+        const SizedBox(height: AppSpace.m),
+        spacesAsync.when(
+          loading: () => const LinearProgressIndicator(),
+          error: (error, _) => Text('$error'),
+          data: (spaces) {
+            if (spaces.isEmpty) {
+              return const EmptyNote(
+                'No individually named spaces are configured for measured floor plans yet.',
+              );
+            }
+            final selectedId = ref.watch(selectedVenueSpaceIdProvider);
+            final current = spaces.any((s) => s.id == selectedId)
+                ? selectedId!
+                : spaces.first.id;
+            if (current != selectedId) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                ref.read(selectedVenueSpaceIdProvider.notifier).select(current);
+              });
+            }
+            final canEdit = (session.permissions).contains(
+              AppPermission.manageConfiguration,
+            );
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: current,
+                  decoration: const InputDecoration(labelText: 'Venue space'),
+                  items: [
+                    for (final s in spaces)
+                      DropdownMenuItem(value: s.id, child: Text(s.name)),
+                  ],
+                  onChanged: (value) => ref
                       .read(selectedVenueSpaceIdProvider.notifier)
-                      .select(current);
-                });
-              }
-              final canEdit = (session.permissions).contains(
-                AppPermission.manageConfiguration,
-              );
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  DropdownButtonFormField<String>(
-                    initialValue: current,
-                    decoration: const InputDecoration(labelText: 'Venue space'),
-                    items: [
-                      for (final s in spaces)
-                        DropdownMenuItem(value: s.id, child: Text(s.name)),
-                    ],
-                    onChanged: (value) => ref
-                        .read(selectedVenueSpaceIdProvider.notifier)
-                        .select(value),
-                  ),
-                  const SizedBox(height: 16),
-                  _FloorPlanEditor(
-                    key: ValueKey(current),
-                    venueId: session.venueId,
-                    venueSpaceId: current,
-                    spaceName: spaces.firstWhere((s) => s.id == current).name,
-                    venueName: session.venueName,
-                    canEdit: canEdit,
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
+                      .select(value),
+                ),
+                const SizedBox(height: 16),
+                _FloorPlanEditor(
+                  key: ValueKey(current),
+                  venueId: session.venueId,
+                  venueSpaceId: current,
+                  spaceName: spaces.firstWhere((s) => s.id == current).name,
+                  venueName: session.venueName,
+                  canEdit: canEdit,
+                ),
+              ],
+            );
+          },
+        ),
+      ],
     );
   }
 }
@@ -227,7 +217,7 @@ class _FloorPlanEditorState extends ConsumerState<_FloorPlanEditor> {
   Widget build(BuildContext context) {
     final planAsync = ref.watch(floorPlanProvider(widget.venueSpaceId));
     return planAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const LinearProgressIndicator(),
       error: (error, _) => Text('$error'),
       data: (existing) {
         _loadFrom(existing);
@@ -259,7 +249,7 @@ class _FloorPlanEditorState extends ConsumerState<_FloorPlanEditor> {
                   plan: existing,
                   venueName: widget.venueName,
                 ),
-                icon: const Icon(Icons.picture_as_pdf_outlined),
+                icon: const PhosphorIcon(PhosphorIconsDuotone.filePdf),
                 label: const Text('Export floor plan PDF'),
               ),
               const SizedBox(height: 12),
@@ -329,7 +319,7 @@ class _FloorPlanEditorState extends ConsumerState<_FloorPlanEditor> {
                 const SizedBox(width: 12),
                 FilledButton.icon(
                   onPressed: widget.canEdit ? () => _generate(existing) : null,
-                  icon: const Icon(Icons.auto_fix_high),
+                  icon: const PhosphorIcon(PhosphorIconsDuotone.magicWand),
                   label: const Text('Generate layouts'),
                 ),
               ],
@@ -339,12 +329,15 @@ class _FloorPlanEditorState extends ConsumerState<_FloorPlanEditor> {
                 padding: const EdgeInsets.only(top: 10),
                 child: Text(
                   _error!,
-                  style: const TextStyle(color: AppColors.blocked),
+                  style: const TextStyle(color: AppColors.accent2700),
                 ),
               ),
             if (_options.isNotEmpty) ...[
               const SizedBox(height: 16),
-              const Text('Compare layouts'),
+              Text(
+                'Compare layouts',
+                style: AppText.body.copyWith(fontWeight: FontWeight.w600),
+              ),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 10,
@@ -368,7 +361,9 @@ class _FloorPlanEditorState extends ConsumerState<_FloorPlanEditor> {
                     ? 'No table boundary or clearance conflicts detected.'
                     : issues.join('\n'),
                 style: TextStyle(
-                  color: issues.isEmpty ? AppColors.ready : AppColors.blocked,
+                  color: issues.isEmpty
+                      ? AppColors.accent700
+                      : AppColors.accent2700,
                 ),
               ),
               const SizedBox(height: 10),
@@ -377,13 +372,13 @@ class _FloorPlanEditorState extends ConsumerState<_FloorPlanEditor> {
                     widget.canEdit && _options.isNotEmpty && issues.isEmpty
                     ? () => _save(existing)
                     : null,
-                icon: const Icon(Icons.save_outlined),
+                icon: const PhosphorIcon(PhosphorIconsDuotone.floppyDisk),
                 label: const Text('Save floor plan'),
               ),
               const SizedBox(height: 16),
               OutlinedButton.icon(
                 onPressed: () => setState(() => _show3D = !_show3D),
-                icon: const Icon(Icons.view_in_ar_outlined),
+                icon: const PhosphorIcon(PhosphorIconsDuotone.cube),
                 label: Text(_show3D ? 'Hide 3D preview' : 'Show 3D preview'),
               ),
               if (_show3D) ...[
@@ -400,10 +395,7 @@ class _FloorPlanEditorState extends ConsumerState<_FloorPlanEditor> {
                 const Text(
                   '3D preview is an illustrative render of this layout, not a photograph. '
                   'People and food are stylized placeholders, not the actual guests or menu.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.charcoalMuted,
-                  ),
+                  style: AppText.meta,
                 ),
               ],
             ] else if (existing == null)
@@ -411,7 +403,7 @@ class _FloorPlanEditorState extends ConsumerState<_FloorPlanEditor> {
                 padding: EdgeInsets.only(top: 8),
                 child: Text(
                   'Enter the room measurements and a guest count, then generate layouts.',
-                  style: TextStyle(color: AppColors.charcoalMuted),
+                  style: AppText.meta,
                 ),
               ),
           ],
@@ -441,15 +433,8 @@ class _LayoutOptionPreview extends StatelessWidget {
     width: 184,
     child: Card(
       clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        side: BorderSide(
-          color: selected
-              ? Theme.of(context).colorScheme.primary
-              : Colors.transparent,
-          width: 2,
-        ),
-        borderRadius: BorderRadius.circular(12),
-      ),
+      color: selected ? AppColors.accent100 : AppColors.surface,
+      shape: RoundedRectangleBorder(borderRadius: AppRadius.all),
       child: InkWell(
         onTap: onTap,
         child: Padding(
@@ -457,8 +442,11 @@ class _LayoutOptionPreview extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(option.name, style: Theme.of(context).textTheme.labelLarge),
-              Text('${option.tables.length} tables'),
+              Text(
+                option.name,
+                style: AppText.body.copyWith(fontWeight: FontWeight.w600),
+              ),
+              Text('${option.tables.length} tables', style: AppText.meta),
               const SizedBox(height: 8),
               SizedBox(
                 height: 112,

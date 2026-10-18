@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/app_failure.dart';
-import '../../../core/theme/app_theme.dart';
-import '../../../core/widgets/status_chip.dart';
+import '../../../core/widgets/broadsheet.dart';
+import '../../../core/widgets/tag.dart';
 import '../application/staff_providers.dart';
 import '../domain/my_assignment.dart';
 
@@ -26,55 +26,28 @@ class MyAssignmentsCard extends ConsumerWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            SectionHeading(
               pending == 0
                   ? 'Your assignments'
                   : 'Your assignments · $pending to acknowledge',
-              style: Theme.of(context).textTheme.titleMedium,
+              first: true,
             ),
-            const SizedBox(height: 8),
             for (final a in items)
-              Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              a.eventName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                          StatusChip(
-                            label: a.acknowledged
-                                ? 'Acknowledged'
-                                : 'Needs acknowledgment',
-                            color: a.acknowledged
-                                ? AppColors.ready
-                                : AppColors.attention,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text('${a.roleLabel} · ${a.location}'),
-                      if (!a.acknowledged) ...[
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: FilledButton.tonal(
-                            onPressed: () => _acknowledge(context, ref, a),
-                            child: const Text('Acknowledge'),
-                          ),
-                        ),
-                      ],
-                    ],
+              Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: OpenRow(
+                  title: a.eventName,
+                  trailing: Tag(
+                    a.acknowledged ? 'Acknowledged' : 'Needs acknowledgment',
+                    a.acknowledged ? Tone.accent : Tone.alert,
                   ),
+                  meta: '${a.roleLabel} · ${a.location}',
+                  below: a.acknowledged
+                      ? null
+                      : FilledButton(
+                          onPressed: () => _acknowledge(context, ref, a),
+                          child: const Text('Acknowledge'),
+                        ),
                 ),
               ),
           ],

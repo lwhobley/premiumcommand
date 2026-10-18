@@ -3,22 +3,28 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/icons/phosphor.dart';
+
 import '../../../core/errors/app_failure.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/time/venue_time.dart';
-import '../../../core/widgets/status_chip.dart';
+import '../../../core/widgets/broadsheet.dart';
+import '../../../core/widgets/tag.dart';
 import '../../auth/application/session_controller.dart';
 import '../../events/application/event_providers.dart';
 import '../../planning/presentation/planning_widgets.dart';
 import '../application/meeting_notes_providers.dart';
 import '../domain/meeting_note.dart';
 
-Color meetingNoteStatusColor(MeetingNoteStatus status) => switch (status) {
-  MeetingNoteStatus.draft => AppColors.neutral,
-  MeetingNoteStatus.analyzed => AppColors.attention,
-  MeetingNoteStatus.applied => AppColors.ready,
-  MeetingNoteStatus.dismissed => AppColors.neutral,
+Tone meetingNoteStatusTone(MeetingNoteStatus status) => switch (status) {
+  MeetingNoteStatus.draft => Tone.neutral,
+  MeetingNoteStatus.analyzed => Tone.alert,
+  MeetingNoteStatus.applied => Tone.accent,
+  MeetingNoteStatus.dismissed => Tone.neutral,
 };
+
+const _kicker = 'Planning';
+const _title = 'Meeting Notes';
 
 /// Administrators record meeting notes here. The assistant finds the event each note is about
 /// and proposes changes; nothing changes until an administrator applies them.
@@ -27,26 +33,20 @@ class MeetingNotesScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (!backendAvailable) {
+      return const PageScaffold(
+        kicker: _kicker,
+        title: _title,
+        children: [EmptyNote('Connect a backend to record meeting notes.')],
+      );
+    }
     return Scaffold(
-      appBar: AppBar(title: const Text('Meeting Notes')),
-      floatingActionButton: backendAvailable
-          ? FloatingActionButton.extended(
-              onPressed: () => context.push('/meeting-notes/new'),
-              icon: const Icon(Icons.add),
-              label: const Text('New meeting note'),
-            )
-          : null,
-      body: backendAvailable
-          ? const _NoteList()
-          : const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'Connect a backend to record meeting notes.',
-                  style: TextStyle(color: AppColors.charcoalMuted),
-                ),
-              ),
-            ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => context.push('/meeting-notes/new'),
+        icon: const PhosphorIcon(PhosphorIconsDuotone.plus),
+        label: const Text('New meeting note'),
+      ),
+      body: const SafeArea(bottom: false, child: _NoteList()),
     );
   }
 }
@@ -67,60 +67,43 @@ class _NoteList extends ConsumerWidget {
     return RefreshIndicator(
       onRefresh: () => ref.refresh(meetingNotesProvider.future),
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpace.screen,
+          0,
+          AppSpace.screen,
+          96,
+        ),
         children: [
-          const Card(
-            child: ListTile(
-              leading: Icon(
-                Icons.auto_awesome_outlined,
-                color: AppColors.brass,
-              ),
-              title: Text('Write or paste notes from a meeting'),
-              subtitle: Text(
+          const ScreenHeader(kicker: _kicker, title: _title, padded: false),
+          const OpenRow(
+            leading: PhosphorIcon(
+              PhosphorIconsDuotone.sparkle,
+              color: AppColors.accent700,
+            ),
+            title: 'Write or paste notes from a meeting',
+            meta:
                 'The assistant finds the event they are about and suggests updates: guest count, '
                 'timing, tasks, menu, suite details, and notes for staff. You review every change '
                 'before it is applied.',
-              ),
-            ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.l),
           ...notes.when(
-            loading: () => const [
-              Center(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: CircularProgressIndicator(),
-                ),
-              ),
-            ],
+            loading: () => const [LinearProgressIndicator()],
             error: (error, _) => [Text(userMessageFor(error))],
             data: (list) => list.isEmpty
-                ? const [
-                    Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Text(
-                        'No meeting notes yet.',
-                        style: TextStyle(color: AppColors.charcoalMuted),
-                      ),
-                    ),
-                  ]
+                ? const [EmptyNote('No meeting notes yet.')]
                 : [
                     for (final note in list)
-                      Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: ListTile(
-                          title: Text(note.displayTitle),
-                          subtitle: Text(
+                      OpenRow(
+                        title: note.displayTitle,
+                        meta:
                             '${note.eventId == null ? 'No event linked' : events[note.eventId] ?? 'Event'}'
                             ' · ${DateFormat('MMM d, y').format(atVenue(note.meetingAt ?? note.createdAt, zone))}',
-                          ),
-                          trailing: StatusChip(
-                            label: note.status.label,
-                            color: meetingNoteStatusColor(note.status),
-                          ),
-                          onTap: () =>
-                              context.push('/meeting-notes/${note.id}'),
+                        trailing: Tag(
+                          note.status.label,
+                          meetingNoteStatusTone(note.status),
                         ),
+                        onTap: () => context.push('/meeting-notes/${note.id}'),
                       ),
                   ],
           ),

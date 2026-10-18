@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/icons/phosphor.dart';
 import '../../../core/permissions/app_permission.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../events/domain/readiness.dart';
@@ -256,7 +257,9 @@ class _StaffFormDialogState extends State<_StaffFormDialog> {
                     helperText: 'Must be unique across all staff. Shown once after saving.',
                     suffixIcon: IconButton(
                       tooltip: 'Generate a PIN',
-                      icon: const Icon(Icons.autorenew),
+                      icon: const PhosphorIcon(
+                        PhosphorIconsDuotone.arrowsClockwise,
+                      ),
                       onPressed: () =>
                           setState(() => _pin.text = generatePin()),
                     ),
@@ -265,7 +268,10 @@ class _StaffFormDialogState extends State<_StaffFormDialog> {
               ],
               if (_error != null) ...[
                 const SizedBox(height: 12),
-                Text(_error!, style: const TextStyle(color: AppColors.blocked)),
+                Text(
+                  _error!,
+                  style: const TextStyle(color: AppColors.accent2700),
+                ),
               ],
             ],
           ),

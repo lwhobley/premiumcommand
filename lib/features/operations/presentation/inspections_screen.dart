@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../core/icons/phosphor.dart';
+
 import '../../../core/permissions/app_permission.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/widgets/status_chip.dart';
+import '../../../core/widgets/broadsheet.dart';
+import '../../../core/widgets/tag.dart';
 import '../../auth/application/session_controller.dart';
 import '../../auth/domain/app_session.dart';
 import '../../planning/application/planning_providers.dart';
@@ -21,37 +25,50 @@ class InspectionsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (!backendAvailable) return const BackendRequired(title: 'Inspections & Checklists');
+    if (!backendAvailable) {
+      return const BackendRequired(title: 'Inspections & Checklists');
+    }
 
     final session = ref.watch(sessionProvider);
     final permissions = session?.permissions ?? const <AppPermission>{};
     final eventId = ref.watch(selectedEventIdProvider);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Inspections & Checklists')),
-      floatingActionButton: eventId != null && permissions.contains(AppPermission.runInspections)
+    return PageScaffold(
+      kicker: 'Operations',
+      title: 'Inspections & Checklists',
+      floatingActionButton:
+          eventId != null && permissions.contains(AppPermission.runInspections)
           ? FloatingActionButton.extended(
               onPressed: () => _start(context, ref, eventId, session!),
-              icon: const Icon(Icons.playlist_add_check),
+              icon: const PhosphorIcon(PhosphorIconsDuotone.listChecks),
               label: const Text('Start inspection'),
             )
           : null,
-      body: ListView(
-        padding: const EdgeInsets.only(bottom: 96),
-        children: [
-          const EventPicker(),
-          if (eventId != null) _Instances(eventId: eventId, permissions: permissions, session: session),
-        ],
-      ),
+      children: [
+        const EventPicker(),
+        if (eventId != null)
+          _Instances(
+            eventId: eventId,
+            permissions: permissions,
+            session: session,
+          ),
+      ],
     );
   }
 
-  Future<void> _start(BuildContext context, WidgetRef ref, String eventId, AppSession session) async {
+  Future<void> _start(
+    BuildContext context,
+    WidgetRef ref,
+    String eventId,
+    AppSession session,
+  ) async {
     final templates = await ref.read(templatesProvider.future);
     if (!context.mounted) return;
     if (templates.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No checklists are available for this venue.')),
+        const SnackBar(
+          content: Text('No checklists are available for this venue.'),
+        ),
       );
       return;
     }
@@ -61,7 +78,9 @@ class InspectionsScreen extends ConsumerWidget {
     );
     if (draft == null || !context.mounted) return;
     await runWrite(context, () async {
-      await ref.read(operationsRepositoryProvider).createInspection(
+      await ref
+          .read(operationsRepositoryProvider)
+          .createInspection(
             venueId: session.venueId,
             eventId: eventId,
             templateId: draft.$1.id,
@@ -73,7 +92,11 @@ class InspectionsScreen extends ConsumerWidget {
 }
 
 class _Instances extends ConsumerWidget {
-  const _Instances({required this.eventId, required this.permissions, required this.session});
+  const _Instances({
+    required this.eventId,
+    required this.permissions,
+    required this.session,
+  });
 
   final String eventId;
   final Set<AppPermission> permissions;
@@ -85,26 +108,33 @@ class _Instances extends ConsumerWidget {
     final templates = ref.watch(templatesProvider);
 
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.only(top: AppSpace.m),
       child: instances.when(
         loading: () => const LinearProgressIndicator(),
         error: (error, _) => Text('$error'),
         data: (items) {
           if (items.isEmpty) {
-            return const Text('No inspections for this event yet.', style: TextStyle(color: AppColors.charcoalMuted));
+            return const EmptyNote('No inspections for this event yet.');
           }
           return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               for (final inst in items)
                 templates.maybeWhen(
                   data: (list) {
-                    final template = list.where((t) => t.id == inst.templateId).firstOrNull;
+                    final template = list
+                        .where((t) => t.id == inst.templateId)
+                        .firstOrNull;
                     if (template == null) return const SizedBox.shrink();
                     return _InstanceCard(
                       instance: inst,
                       template: template,
-                      canRun: permissions.contains(AppPermission.runInspections),
-                      canApprove: permissions.contains(AppPermission.reviewInspections),
+                      canRun: permissions.contains(
+                        AppPermission.runInspections,
+                      ),
+                      canApprove: permissions.contains(
+                        AppPermission.reviewInspections,
+                      ),
                       onComplete: () => _complete(context, ref, inst, template),
                       onApprove: () => _approve(context, ref, inst),
                     );
@@ -118,7 +148,12 @@ class _Instances extends ConsumerWidget {
     );
   }
 
-  Future<void> _complete(BuildContext context, WidgetRef ref, InspectionInstance inst, ChecklistTemplate template) async {
+  Future<void> _complete(
+    BuildContext context,
+    WidgetRef ref,
+    InspectionInstance inst,
+    ChecklistTemplate template,
+  ) async {
     final responses = await showDialog<List<Map<String, dynamic>>>(
       context: context,
       builder: (_) => _CompleteDialog(
@@ -131,44 +166,88 @@ class _Instances extends ConsumerWidget {
     if (responses == null || !context.mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     await runWrite(context, () async {
-      final failures = await ref.read(operationsRepositoryProvider).completeInspection(inst.id, responses);
+      final failures = await ref
+          .read(operationsRepositoryProvider)
+          .completeInspection(inst.id, responses);
       ref.invalidate(inspectionsProvider(eventId));
-      messenger.showSnackBar(SnackBar(content: Text(failures == 0
-          ? 'Inspection complete. No failures.'
-          : 'Inspection complete. $failures failed item(s) opened corrective tasks.')));
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            failures == 0
+                ? 'Inspection complete. No failures.'
+                : 'Inspection complete. $failures failed item(s) opened corrective tasks.',
+          ),
+        ),
+      );
     });
   }
 
-  Future<void> _approve(BuildContext context, WidgetRef ref, InspectionInstance inst) async {
-    final responses = await ref.read(operationsRepositoryProvider).listInspectionResponses(inst.id);
+  Future<void> _approve(
+    BuildContext context,
+    WidgetRef ref,
+    InspectionInstance inst,
+  ) async {
+    final responses = await ref
+        .read(operationsRepositoryProvider)
+        .listInspectionResponses(inst.id);
     final storage = ref.read(evidenceStorageProvider);
     final photos = await Future.wait([
       for (final row in responses)
         if ((row['photo_url'] as String? ?? '').isNotEmpty)
           storage.viewUrl(row['photo_url'] as String)
-        else Future.value(''),
+        else
+          Future.value(''),
     ]);
     if (!context.mounted) return;
-    final approved = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
-      title: const Text('Review inspection responses'),
-      content: SizedBox(width: 520, child: ListView(shrinkWrap: true, children: [
-        for (var index = 0; index < responses.length; index++)
-          ListTile(
-            title: Text((responses[index]['checklist_items'] as Map?)?['label'] as String? ?? 'Item'),
-            subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(responses[index]['passed'] == true ? 'Passed' : 'Failed'),
-              if (responses[index]['numeric_value'] != null) Text('Value: ${responses[index]['numeric_value']}'),
-              if ((responses[index]['text_value'] as String? ?? '').isNotEmpty)
-                Text(responses[index]['text_value'] as String),
-              if (photos[index].isNotEmpty) Image.network(photos[index], height: 160),
-            ]),
+    final approved = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Review inspection responses'),
+        content: SizedBox(
+          width: 520,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              for (var index = 0; index < responses.length; index++)
+                ListTile(
+                  title: Text(
+                    (responses[index]['checklist_items'] as Map?)?['label']
+                            as String? ??
+                        'Item',
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        responses[index]['passed'] == true
+                            ? 'Passed'
+                            : 'Failed',
+                      ),
+                      if (responses[index]['numeric_value'] != null)
+                        Text('Value: ${responses[index]['numeric_value']}'),
+                      if ((responses[index]['text_value'] as String? ?? '')
+                          .isNotEmpty)
+                        Text(responses[index]['text_value'] as String),
+                      if (photos[index].isNotEmpty)
+                        Image.network(photos[index], height: 160),
+                    ],
+                  ),
+                ),
+            ],
           ),
-      ])),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-        FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Approve')),
-      ],
-    ));
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Approve'),
+          ),
+        ],
+      ),
+    );
     if (approved != true || !context.mounted) return;
     await runWrite(context, () async {
       await ref.read(operationsRepositoryProvider).approveInspection(inst.id);
@@ -196,32 +275,39 @@ class _InstanceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = switch (instance.status) {
-      'approved' => AppColors.ready,
-      'completed' => AppColors.inProgress,
-      _ => AppColors.attention,
+    final tone = switch (instance.status) {
+      'approved' => Tone.accent,
+      'completed' => Tone.accent,
+      _ => Tone.neutral,
     };
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              Expanded(child: Text('${template.name} · ${instance.subject}',
-                  style: const TextStyle(fontWeight: FontWeight.w600))),
-              StatusChip(label: instance.status[0].toUpperCase() + instance.status.substring(1), color: color),
-            ]),
-            const SizedBox(height: 4),
-            Text('${template.items.length} items', style: const TextStyle(color: AppColors.charcoalMuted, fontSize: 13)),
-            const SizedBox(height: 8),
-            if (instance.status == 'open' && canRun)
-              FilledButton.tonal(onPressed: onComplete, child: const Text('Complete inspection')),
-            if (instance.status == 'completed' && canApprove)
-              FilledButton(onPressed: onApprove, child: const Text('Review and approve')),
-          ],
+    final showComplete = instance.status == 'open' && canRun;
+    final showApprove = instance.status == 'completed' && canApprove;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpace.row),
+      child: OpenRow(
+        title: '${template.name} · ${instance.subject}',
+        trailing: Tag(
+          instance.status[0].toUpperCase() + instance.status.substring(1),
+          tone,
         ),
+        meta: '${template.items.length} items',
+        below: showComplete || showApprove
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (showComplete)
+                    FilledButton.tonal(
+                      onPressed: onComplete,
+                      child: const Text('Complete inspection'),
+                    ),
+                  if (showApprove)
+                    FilledButton(
+                      onPressed: onApprove,
+                      child: const Text('Review and approve'),
+                    ),
+                ],
+              )
+            : null,
       ),
     );
   }
@@ -256,15 +342,26 @@ class _StartDialogState extends State<_StartDialog> {
           DropdownButtonFormField<ChecklistTemplate>(
             initialValue: _template,
             decoration: const InputDecoration(labelText: 'Checklist'),
-            items: [for (final t in widget.templates) DropdownMenuItem(value: t, child: Text(t.name))],
+            items: [
+              for (final t in widget.templates)
+                DropdownMenuItem(value: t, child: Text(t.name)),
+            ],
             onChanged: (v) => setState(() => _template = v ?? _template),
           ),
           const SizedBox(height: 10),
-          TextField(controller: _subject, decoration: const InputDecoration(labelText: 'Where (suite, bar, room)')),
+          TextField(
+            controller: _subject,
+            decoration: const InputDecoration(
+              labelText: 'Where (suite, bar, room)',
+            ),
+          ),
         ],
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
         FilledButton(
           onPressed: () {
             if (_subject.text.trim().isEmpty) return;
@@ -296,7 +393,9 @@ class _CompleteDialog extends StatefulWidget {
 }
 
 class _CompleteDialogState extends State<_CompleteDialog> {
-  late final Map<String, bool?> _passed = {for (final i in widget.template.items) i.id: null};
+  late final Map<String, bool?> _passed = {
+    for (final i in widget.template.items) i.id: null,
+  };
   final Map<String, TextEditingController> _notes = {};
   final Map<String, TextEditingController> _numbers = {};
   final Map<String, String> _photos = {};
@@ -324,7 +423,15 @@ class _CompleteDialogState extends State<_CompleteDialog> {
       if (!mounted) return;
       setState(() => _photos[itemId] = path);
     } catch (error) {
-      messenger.showSnackBar(SnackBar(content: Text(error is StateError ? error.message : 'The photo could not be added.')));
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            error is StateError
+                ? error.message
+                : 'The photo could not be added.',
+          ),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _uploading.remove(itemId));
     }
@@ -350,18 +457,21 @@ class _CompleteDialogState extends State<_CompleteDialog> {
         'item_id': item.id,
         'passed': value,
         'numeric_value': item.responseType == 'numeric'
-            ? num.tryParse(_numbers[item.id]?.text.trim() ?? '') : null,
+            ? num.tryParse(_numbers[item.id]?.text.trim() ?? '')
+            : null,
         'text_value': _notes[item.id]?.text.trim() ?? '',
         'photo_url': _photos[item.id] ?? '',
       });
     }
     if (responses.length != widget.template.items.length ||
-        widget.template.items.any((item) =>
-            (item.responseType == 'numeric' &&
-                num.tryParse(_numbers[item.id]?.text.trim() ?? '') == null) ||
-            (item.responseType == 'text' &&
-                (_notes[item.id]?.text.trim().isEmpty ?? true)) ||
-            (item.responseType == 'photo' && !_photos.containsKey(item.id)))) {
+        widget.template.items.any(
+          (item) =>
+              (item.responseType == 'numeric' &&
+                  num.tryParse(_numbers[item.id]?.text.trim() ?? '') == null) ||
+              (item.responseType == 'text' &&
+                  (_notes[item.id]?.text.trim().isEmpty ?? true)) ||
+              (item.responseType == 'photo' && !_photos.containsKey(item.id)),
+        )) {
       return;
     }
     Navigator.pop(context, responses);
@@ -369,12 +479,17 @@ class _CompleteDialogState extends State<_CompleteDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final unanswered = widget.template.items.where((item) =>
-        _passed[item.id] == null ||
-        (item.responseType == 'numeric' &&
-            num.tryParse(_numbers[item.id]?.text.trim() ?? '') == null) ||
-        (item.responseType == 'text' && (_notes[item.id]?.text.trim().isEmpty ?? true)) ||
-        (item.responseType == 'photo' && !_photos.containsKey(item.id))).length;
+    final unanswered = widget.template.items
+        .where(
+          (item) =>
+              _passed[item.id] == null ||
+              (item.responseType == 'numeric' &&
+                  num.tryParse(_numbers[item.id]?.text.trim() ?? '') == null) ||
+              (item.responseType == 'text' &&
+                  (_notes[item.id]?.text.trim().isEmpty ?? true)) ||
+              (item.responseType == 'photo' && !_photos.containsKey(item.id)),
+        )
+        .length;
     return AlertDialog(
       title: Text(widget.template.name),
       content: SizedBox(
@@ -382,72 +497,143 @@ class _CompleteDialogState extends State<_CompleteDialog> {
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               for (final item in widget.template.items)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.only(bottom: AppSpace.l),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(item.label, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      Text(
+                        item.label,
+                        style: AppText.rowTitle.copyWith(fontSize: 17),
+                      ),
                       if (item.requiresManagerApproval)
-                        const Text('Needs manager approval', style: TextStyle(color: AppColors.attention, fontSize: 12)),
+                        const Text(
+                          'Needs manager approval',
+                          style: AppText.meta,
+                        ),
+                      const SizedBox(height: 8),
                       if (item.responseType == 'numeric')
                         TextField(
-                          controller: _numbers.putIfAbsent(item.id, () => TextEditingController()),
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          decoration: const InputDecoration(labelText: 'Measured value'),
+                          controller: _numbers.putIfAbsent(
+                            item.id,
+                            () => TextEditingController(),
+                          ),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Measured value',
+                          ),
                           onChanged: (_) => setState(() {}),
                         ),
                       if (item.responseType == 'text')
                         TextField(
-                          controller: _notes.putIfAbsent(item.id, () => TextEditingController()),
-                          decoration: const InputDecoration(labelText: 'Response'),
+                          controller: _notes.putIfAbsent(
+                            item.id,
+                            () => TextEditingController(),
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Response',
+                          ),
                           onChanged: (_) => setState(() {}),
                         ),
-                      Row(children: [
-                        ChoiceChip(
-                          label: Text(item.responseType == 'yes_no' ? 'Yes' : 'Pass'),
-                          selected: _passed[item.id] == true,
-                          onSelected: (_) => setState(() => _passed[item.id] = true),
+                      const SizedBox(height: 8),
+                      SegmentedButton<bool>(
+                        showSelectedIcon: false,
+                        emptySelectionAllowed: true,
+                        segments: [
+                          ButtonSegment(
+                            value: true,
+                            label: Text(
+                              item.responseType == 'yes_no' ? 'Yes' : 'Pass',
+                              softWrap: false,
+                              maxLines: 1,
+                            ),
+                          ),
+                          ButtonSegment(
+                            value: false,
+                            label: Text(
+                              item.responseType == 'yes_no' ? 'No' : 'Fail',
+                              softWrap: false,
+                              maxLines: 1,
+                            ),
+                          ),
+                        ],
+                        selected: {?_passed[item.id]},
+                        // Only one segment is selected at a time, so the selected fill follows
+                        // the answer: accent for a pass, accent2 for a fail.
+                        style: ButtonStyle(
+                          backgroundColor: WidgetStateProperty.resolveWith(
+                            (states) => !states.contains(WidgetState.selected)
+                                ? Colors.transparent
+                                : _passed[item.id] == false
+                                ? AppColors.accent2
+                                : AppColors.accent,
+                          ),
                         ),
-                        const SizedBox(width: 8),
-                        ChoiceChip(
-                          label: Text(item.responseType == 'yes_no' ? 'No' : 'Fail'),
-                          selected: _passed[item.id] == false,
-                          onSelected: (_) => setState(() => _passed[item.id] = false),
-                        ),
-                      ]),
-                      if (_passed[item.id] == false && item.responseType != 'text')
+                        onSelectionChanged: (selection) {
+                          if (selection.isEmpty) return;
+                          setState(() => _passed[item.id] = selection.first);
+                        },
+                      ),
+                      if (_passed[item.id] == false &&
+                          item.responseType != 'text') ...[
+                        const SizedBox(height: 8),
                         TextField(
-                          controller: _notes.putIfAbsent(item.id, () => TextEditingController()),
-                          decoration: const InputDecoration(labelText: 'What failed? (opens a corrective task)'),
+                          controller: _notes.putIfAbsent(
+                            item.id,
+                            () => TextEditingController(),
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'What failed? (opens a corrective task)',
+                          ),
                         ),
-                      const SizedBox(height: 6),
-                      Row(children: [
-                        OutlinedButton.icon(
-                          onPressed: _uploading.contains(item.id) ? null : () => _addPhoto(item.id),
-                          icon: const Icon(Icons.photo_camera_outlined, size: 18),
-                          label: Text(_uploading.contains(item.id)
-                              ? 'Uploading…'
-                              : _photos.containsKey(item.id)
+                      ],
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: _uploading.contains(item.id)
+                                ? null
+                                : () => _addPhoto(item.id),
+                            icon: const PhosphorIcon(
+                              PhosphorIconsDuotone.camera,
+                              size: 18,
+                            ),
+                            label: Text(
+                              _uploading.contains(item.id)
+                                  ? 'Uploading…'
+                                  : _photos.containsKey(item.id)
                                   ? 'Photo added (replace)'
-                                  : 'Add photo'),
-                        ),
-                      ]),
+                                  : 'Add photo',
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
               if (unanswered > 0)
-                Text('$unanswered item(s) still need their required response.',
-                    style: const TextStyle(color: AppColors.blocked)),
+                Text(
+                  '$unanswered item(s) still need their required response.',
+                  style: const TextStyle(color: AppColors.accent2700),
+                ),
             ],
           ),
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-        FilledButton(onPressed: unanswered == 0 ? _submit : null, child: const Text('Submit')),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: unanswered == 0 ? _submit : null,
+          child: const Text('Submit'),
+        ),
       ],
     );
   }

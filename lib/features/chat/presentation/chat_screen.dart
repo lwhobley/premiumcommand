@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/icons/phosphor.dart';
+
 import '../../../core/errors/app_failure.dart';
 import '../../../core/text/initials.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/broadsheet.dart';
 import '../../auth/application/session_controller.dart';
 import '../../planning/application/planning_providers.dart';
 import '../../planning/presentation/planning_widgets.dart';
@@ -35,46 +38,59 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final wide = MediaQuery.sizeOf(context).width >= _wideBreakpoint;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Chat')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _startChat(session.venueId, session.userId),
-        icon: const Icon(Icons.edit_outlined),
+        icon: const PhosphorIcon(PhosphorIconsDuotone.pencilSimple),
         label: const Text('New chat'),
       ),
-      body: wide
-          ? Row(
-              children: [
-                SizedBox(
-                  width: 340,
-                  child: _ConversationList(
-                    venueId: session.venueId,
-                    myUserId: session.userId,
-                    selectedId: _selected,
-                    onOpen: (id) => setState(() => _selected = id),
-                  ),
-                ),
-                const VerticalDivider(width: 1),
-                Expanded(
-                  child: _selected == null
-                      ? const Center(
-                          child: Text(
-                            'Choose a conversation to start reading.',
-                            style: TextStyle(color: AppColors.charcoalMuted),
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const ScreenHeader(kicker: 'Team', title: 'Chat'),
+            Expanded(
+              child: wide
+                  ? Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: 340,
+                          child: _ConversationList(
+                            venueId: session.venueId,
+                            myUserId: session.userId,
+                            selectedId: _selected,
+                            onOpen: (id) => setState(() => _selected = id),
                           ),
-                        )
-                      : ChatThreadView(
-                          key: ValueKey(_selected),
-                          conversationId: _selected!,
                         ),
-                ),
-              ],
-            )
-          : _ConversationList(
-              venueId: session.venueId,
-              myUserId: session.userId,
-              selectedId: null,
-              onOpen: (id) => context.push('/chat/$id'),
+                        const SizedBox(width: AppSpace.s),
+                        Expanded(
+                          child: _selected == null
+                              ? const Padding(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: AppSpace.screen,
+                                  ),
+                                  child: EmptyNote(
+                                    'Choose a conversation to start reading.',
+                                  ),
+                                )
+                              : ChatThreadView(
+                                  key: ValueKey(_selected),
+                                  conversationId: _selected!,
+                                ),
+                        ),
+                      ],
+                    )
+                  : _ConversationList(
+                      venueId: session.venueId,
+                      myUserId: session.userId,
+                      selectedId: null,
+                      onOpen: (id) => context.push('/chat/$id'),
+                    ),
             ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -85,12 +101,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         child: Wrap(
           children: [
             ListTile(
-              leading: const Icon(Icons.person_outline),
+              leading: const PhosphorIcon(PhosphorIconsDuotone.user),
               title: const Text('Message a person'),
               onTap: () => Navigator.of(context).pop('direct'),
             ),
             ListTile(
-              leading: const Icon(Icons.groups_outlined),
+              leading: const PhosphorIcon(PhosphorIconsDuotone.usersThree),
               title: const Text('New group'),
               onTap: () => Navigator.of(context).pop('group'),
             ),
@@ -203,39 +219,38 @@ class _ConversationList extends ConsumerWidget {
     final online = ref.watch(onlineUsersProvider);
 
     return conversations.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, _) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(userMessageFor(error), textAlign: TextAlign.center),
-              TextButton(
-                onPressed: () => ref.invalidate(chatListProvider(venueId)),
-                child: const Text('Try again'),
-              ),
-            ],
-          ),
+      loading: () => const Align(
+        alignment: Alignment.topCenter,
+        child: LinearProgressIndicator(),
+      ),
+      error: (error, _) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpace.screen),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(userMessageFor(error), style: AppText.body),
+            const SizedBox(height: AppSpace.xs),
+            TextButton(
+              onPressed: () => ref.invalidate(chatListProvider(venueId)),
+              child: const Text('Try again'),
+            ),
+          ],
         ),
       ),
       data: (items) {
         if (items.isEmpty) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: Text(
-                'No conversations yet. Use New chat to message someone or start a group.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.charcoalMuted),
-              ),
+          return const Padding(
+            padding: EdgeInsets.symmetric(horizontal: AppSpace.screen),
+            child: EmptyNote(
+              'No conversations yet. Use New chat to message someone or start a group.',
             ),
           );
         }
         final now = DateTime.now();
-        return ListView.separated(
+        return ListView.builder(
+          padding: const EdgeInsets.only(bottom: 96),
           itemCount: items.length,
-          separatorBuilder: (_, _) => const Divider(height: 1, indent: 72),
           itemBuilder: (context, index) {
             final c = items[index];
             final isOnline =
@@ -251,7 +266,12 @@ class _ConversationList extends ConsumerWidget {
             );
             return ListTile(
               selected: c.id == selectedId,
-              selectedTileColor: AppColors.brassSoft,
+              selectedTileColor: AppColors.accent100,
+              selectedColor: AppColors.text,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: AppSpace.screen,
+                vertical: 4,
+              ),
               leading: Stack(
                 children: [
                   CircleAvatar(child: Text(initialsFor(c.title))),
@@ -263,9 +283,12 @@ class _ConversationList extends ConsumerWidget {
                         width: 12,
                         height: 12,
                         decoration: BoxDecoration(
-                          color: AppColors.ready,
+                          color: AppColors.accent,
                           shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
+                          border: Border.all(
+                            color: AppColors.background,
+                            width: 2,
+                          ),
                         ),
                       ),
                     ),
@@ -275,23 +298,17 @@ class _ConversationList extends ConsumerWidget {
                 c.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontWeight: c.unreadCount > 0
-                      ? FontWeight.w700
-                      : FontWeight.w600,
-                ),
+                style: AppText.rowTitle.copyWith(fontSize: 17),
               ),
               subtitle: Text(
                 preview,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: c.unreadCount > 0
-                      ? AppColors.charcoal
-                      : AppColors.charcoalMuted,
+                style: AppText.meta.copyWith(
+                  color: c.unreadCount > 0 ? AppColors.text : AppColors.muted,
                   fontWeight: c.unreadCount > 0
                       ? FontWeight.w600
-                      : FontWeight.normal,
+                      : FontWeight.w400,
                 ),
               ),
               trailing: Column(
@@ -303,23 +320,30 @@ class _ConversationList extends ConsumerWidget {
                     Text(
                       chatTimeLabel(c.lastMessageAt!, now),
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 11,
                         color: c.unreadCount > 0
-                            ? AppColors.ready
-                            : AppColors.charcoalMuted,
+                            ? AppColors.accent700
+                            : AppColors.muted,
                       ),
                     ),
                   if (c.unreadCount > 0) ...[
                     const SizedBox(height: 4),
-                    CircleAvatar(
-                      radius: 11,
-                      backgroundColor: AppColors.ready,
+                    Container(
+                      constraints: const BoxConstraints(minWidth: 22),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.accent,
+                        borderRadius: AppRadius.all,
+                      ),
                       child: Text(
                         c.unreadCount > 99 ? '99+' : '${c.unreadCount}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
+                        maxLines: 1,
+                        softWrap: false,
+                        style: AppText.tag.copyWith(
+                          color: AppColors.background,
                         ),
                       ),
                     ),
@@ -347,8 +371,13 @@ class ChatThreadScreen extends ConsumerWidget {
     if (session == null) return const SizedBox.shrink();
     ref.watch(chatRealtimeProvider(session.venueId));
     return Scaffold(
-      appBar: AppBar(title: const Text('Chat')),
-      body: ChatThreadView(conversationId: conversationId),
+      body: SafeArea(
+        bottom: false,
+        child: ChatThreadView(
+          conversationId: conversationId,
+          back: const BackLink(),
+        ),
+      ),
     );
   }
 }
