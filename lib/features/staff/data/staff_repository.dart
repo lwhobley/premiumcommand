@@ -89,6 +89,7 @@ class StaffRepository {
           jpeg,
           fileOptions: const FileOptions(
             upsert: true,
+            cacheControl: '0',
             contentType: 'image/jpeg',
           ),
         );
@@ -99,8 +100,21 @@ class StaffRepository {
   }
 
   /// A short-lived link to a photo the caller is allowed to see.
-  Future<String> photoUrl(String path) =>
-      _client.storage.from('staff-photos').createSignedUrl(path, 3600);
+  Future<String> photoUrl(String path) async {
+    final signed = Uri.parse(
+      await _client.storage.from('staff-photos').createSignedUrl(path, 3600),
+    );
+    // A replaced photo uses the same storage path. Give each renewed link a new
+    // cache key so clients and intermediaries fetch the current bytes.
+    return signed
+        .replace(
+          queryParameters: {
+            ...signed.queryParameters,
+            'v': DateTime.now().microsecondsSinceEpoch.toString(),
+          },
+        )
+        .toString();
+  }
 
   /// Staff directory without contact details. Requires view_deployment.
   Future<List<StaffDirectoryEntry>> directory(String venueId) async {

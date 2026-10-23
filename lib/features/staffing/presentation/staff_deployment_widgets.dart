@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../core/time/venue_time.dart';
 import '../../../core/widgets/broadsheet.dart';
 import '../../../core/widgets/tag.dart';
+import '../../auth/application/session_controller.dart';
 import '../../events/domain/readiness.dart';
 import '../../planning/application/planning_providers.dart';
 import '../../planning/presentation/planning_widgets.dart';
@@ -113,7 +115,10 @@ class StaffDirectoryPanel extends ConsumerWidget {
   ) async {
     final draft = await showDialog<AvailabilityDraft>(
       context: context,
-      builder: (_) => _AvailabilityDialog(name: person.fullName),
+      builder: (_) => AvailabilityDialog(
+        name: person.fullName,
+        timeZone: ref.read(sessionProvider)!.timeZone,
+      ),
     );
     if (draft == null || !context.mounted) return;
     await runWrite(
@@ -151,21 +156,36 @@ class AvailabilityDraft {
   final String note;
 }
 
-class _AvailabilityDialog extends StatefulWidget {
-  const _AvailabilityDialog({required this.name});
+class AvailabilityDialog extends StatefulWidget {
+  const AvailabilityDialog({
+    super.key,
+    required this.name,
+    required this.timeZone,
+  });
 
   final String name;
+  final String timeZone;
 
   @override
-  State<_AvailabilityDialog> createState() => _AvailabilityDialogState();
+  State<AvailabilityDialog> createState() => _AvailabilityDialogState();
 }
 
-class _AvailabilityDialogState extends State<_AvailabilityDialog> {
+class _AvailabilityDialogState extends State<AvailabilityDialog> {
   AvailabilityStatus _status = AvailabilityStatus.unavailable;
-  late DateTime _start = DateTime.now();
-  late DateTime _end = DateTime.now().add(const Duration(hours: 8));
+  late DateTime _start;
+  late DateTime _end;
   final _note = TextEditingController();
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _start = atVenue(DateTime.now(), widget.timeZone);
+    _end = atVenue(
+      DateTime.now().add(const Duration(hours: 8)),
+      widget.timeZone,
+    );
+  }
 
   @override
   void dispose() {
@@ -177,8 +197,14 @@ class _AvailabilityDialogState extends State<_AvailabilityDialog> {
     final date = await showDatePicker(
       context: context,
       initialDate: start ? _start : _end,
-      firstDate: DateTime.now().subtract(const Duration(days: 1)),
-      lastDate: DateTime.now().add(const Duration(days: 730)),
+      firstDate: atVenue(
+        DateTime.now().subtract(const Duration(days: 1)),
+        widget.timeZone,
+      ),
+      lastDate: atVenue(
+        DateTime.now().add(const Duration(days: 730)),
+        widget.timeZone,
+      ),
     );
     if (date == null || !mounted) return;
     final time = await showTimePicker(
@@ -186,7 +212,7 @@ class _AvailabilityDialogState extends State<_AvailabilityDialog> {
       initialTime: TimeOfDay.fromDateTime(start ? _start : _end),
     );
     if (time == null || !mounted) return;
-    final value = DateTime(
+    final value = DateTime.utc(
       date.year,
       date.month,
       date.day,
@@ -197,7 +223,17 @@ class _AvailabilityDialogState extends State<_AvailabilityDialog> {
   }
 
   void _save() {
-    if (!_end.isAfter(_start)) {
+    final DateTime start;
+    final DateTime end;
+    try {
+      start = venueWallTimeUtc(_start, widget.timeZone);
+      end = venueWallTimeUtc(_end, widget.timeZone);
+    } on ArgumentError {
+      return setState(
+        () => _error = 'This time does not exist in the venue time zone. Choose another time.',
+      );
+    }
+    if (!end.isAfter(start)) {
       return setState(
         () => _error = 'The end time must be after the start time.',
       );
@@ -205,8 +241,8 @@ class _AvailabilityDialogState extends State<_AvailabilityDialog> {
     Navigator.of(context).pop(
       AvailabilityDraft(
         status: _status,
-        startsAt: _start,
-        endsAt: _end,
+        startsAt: start,
+        endsAt: end,
         note: _note.text,
       ),
     );
@@ -222,6 +258,7 @@ class _AvailabilityDialogState extends State<_AvailabilityDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Text('Times in ${widget.timeZone}', style: AppText.meta),
             DropdownButtonFormField<AvailabilityStatus>(
               initialValue: _status,
               decoration: const InputDecoration(labelText: 'Status'),

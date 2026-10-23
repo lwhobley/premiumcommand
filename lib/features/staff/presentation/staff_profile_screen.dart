@@ -93,6 +93,7 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
     final messenger = ScaffoldMessenger.of(context);
     try {
       await action();
+      if (!mounted) return;
       ref.invalidate(staffListProvider(_venueId));
       messenger.showSnackBar(SnackBar(content: Text(success)));
     } catch (error) {
@@ -122,12 +123,17 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
     );
     if (file == null) return;
     final bytes = await file.readAsBytes();
-    await _run(
-      () => ref
-          .read(staffRepositoryProvider)
-          .uploadPhoto(_venueId, profile.id, bytes),
-      success: 'Photo updated.',
-    );
+    if (!mounted) return;
+    final path = staffPhotoPath(_venueId, profile.id);
+    final previousUrl = ref.read(staffPhotoUrlProvider(path)).asData?.value;
+    final repository = ref.read(staffRepositoryProvider);
+    final venueId = _venueId;
+    final profileId = profile.id;
+    await _run(() async {
+      await repository.uploadPhoto(venueId, profileId, bytes);
+      if (previousUrl != null) await NetworkImage(previousUrl).evict();
+      if (mounted) ref.invalidate(staffPhotoUrlProvider(path));
+    }, success: 'Photo updated.');
   }
 
   Future<void> _resetPin() async {

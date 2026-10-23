@@ -21,7 +21,12 @@ final outboxStoreProvider = Provider<OutboxStore>((ref) => OutboxStore());
 final offlineCacheProvider = Provider<OfflineCache>((ref) => OfflineCache());
 
 class SyncState {
-  const SyncState({this.pending = 0, this.needsReview = 0, this.syncing = false, this.lastError});
+  const SyncState({
+    this.pending = 0,
+    this.needsReview = 0,
+    this.syncing = false,
+    this.lastError,
+  });
 
   final int pending;
   final int needsReview;
@@ -31,7 +36,9 @@ class SyncState {
   bool get hasWork => pending > 0 || needsReview > 0;
 }
 
-final syncControllerProvider = NotifierProvider<SyncController, SyncState>(SyncController.new);
+final syncControllerProvider = NotifierProvider<SyncController, SyncState>(
+  SyncController.new,
+);
 
 /// Saves writes made while offline and sends them in order. Writes that conflict are kept for review.
 class SyncController extends Notifier<SyncState> {
@@ -44,24 +51,36 @@ class SyncController extends Notifier<SyncState> {
     ref.listen(sessionProvider, (_, next) => _publish(clearError: true));
     _timer = Timer.periodic(const Duration(seconds: 30), (_) => flush());
     ref.onDispose(() => _timer?.cancel());
-    unawaited(_store.load().then((_) {
-      _publish();
-      flush();
-    }));
+    unawaited(
+      _store.load().then((_) {
+        _publish();
+        flush();
+      }),
+    );
     return const SyncState();
   }
 
   /// Only the signed-in person's queued changes.
   List<OutboxItem> get items {
     final session = ref.read(sessionProvider);
-    return _store.items.where((i) => i.userId == session?.userId &&
-        (i.venueId == session?.venueId || i.venueId.isEmpty)).toList();
+    return _store.items
+        .where(
+          (i) =>
+              i.userId == session?.userId &&
+              (i.venueId == session?.venueId || i.venueId.isEmpty),
+        )
+        .toList();
   }
 
   void _publish({String? error, bool clearError = false, bool? syncing}) {
     final session = ref.read(sessionProvider);
-    final mine = _store.items.where((i) => i.userId == session?.userId &&
-        (i.venueId == session?.venueId || i.venueId.isEmpty)).toList();
+    final mine = _store.items
+        .where(
+          (i) =>
+              i.userId == session?.userId &&
+              (i.venueId == session?.venueId || i.venueId.isEmpty),
+        )
+        .toList();
     final pending = mine.where((i) => !i.needsReview).length;
     final review = mine.where((i) => i.needsReview).length;
     state = SyncState(
@@ -73,7 +92,11 @@ class SyncController extends Notifier<SyncState> {
   }
 
   /// Saves a write for later. Returns immediately; sending happens in [flush].
-  Future<void> enqueue(String kind, Map<String, dynamic> payload, {String? id}) async {
+  Future<void> enqueue(
+    String kind,
+    Map<String, dynamic> payload, {
+    String? id,
+  }) async {
     final session = ref.read(sessionProvider);
     if (session == null) throw const AppFailure('Sign in to save this change.');
     final item = OutboxItem(
@@ -105,12 +128,19 @@ class SyncController extends Notifier<SyncState> {
         }
         if (item.needsReview) continue;
         // Another person's queued work waits for that person; it is never sent under this account.
-        if (item.userId != session.userId || item.venueId != session.venueId) continue;
+        if (item.userId != session.userId || item.venueId != session.venueId) {
+          continue;
+        }
         try {
           await _send(item);
           if (ref.read(sessionProvider)?.userId != session.userId ||
               ref.read(sessionProvider)?.venueId != session.venueId) {
             break;
+          }
+          if (item.kind == outboxSetTaskStatus) {
+            ref.invalidate(eventSnapshotsProvider);
+          } else {
+            ref.invalidate(eventRequestsProvider);
           }
           await _store.remove(item.id);
         } catch (error) {
@@ -120,16 +150,20 @@ class SyncController extends Notifier<SyncState> {
           }
           final kind = classifyFailure(error);
           if (kind == FailureKind.offline) {
-            await _store.replace(item.copyWith(attempts: item.attempts + 1, lastError: 'Offline'));
+            await _store.replace(
+              item.copyWith(attempts: item.attempts + 1, lastError: 'Offline'),
+            );
             _publish(error: 'Offline. Waiting to sync.');
             break;
           }
           // Conflicts, permission changes, and rule failures go to review. Nothing is overwritten.
-          await _store.replace(item.copyWith(
-            attempts: item.attempts + 1,
-            needsReview: true,
-            lastError: friendlyMessage(error),
-          ));
+          await _store.replace(
+            item.copyWith(
+              attempts: item.attempts + 1,
+              needsReview: true,
+              lastError: friendlyMessage(error),
+            ),
+          );
         }
       }
       _publish(clearError: true);
@@ -143,7 +177,9 @@ class SyncController extends Notifier<SyncState> {
     final p = item.payload;
     switch (item.kind) {
       case outboxCreateRequest:
-        await ref.read(dispatchRepositoryProvider).createRequest(
+        await ref
+            .read(dispatchRepositoryProvider)
+            .createRequest(
               p['event_id'] as String,
               ServiceRequestDraft(
                 clientRequestId: p['client_request_id'] as String,
@@ -154,7 +190,9 @@ class SyncController extends Notifier<SyncState> {
               ),
             );
       case outboxTransitionRequest:
-        await ref.read(dispatchRepositoryProvider).transition(
+        await ref
+            .read(dispatchRepositoryProvider)
+            .transition(
               requestId: p['request_id'] as String,
               to: RequestStatus.fromCode(p['to'] as String),
               expectedVersion: (p['expected_version'] as num).toInt(),
@@ -164,7 +202,9 @@ class SyncController extends Notifier<SyncState> {
               actionId: item.id,
             );
       case outboxSetTaskStatus:
-        await ref.read(eventRepositoryProvider).setTaskStatus(
+        await ref
+            .read(eventRepositoryProvider)
+            .setTaskStatus(
               p['task_id'] as String,
               TaskStatus.fromCode(p['status'] as String),
               expectedVersion: (p['expected_version'] as num).toInt(),
@@ -179,7 +219,9 @@ class SyncController extends Notifier<SyncState> {
   Future<void> retry(String id) async {
     final item = _store.items.where((i) => i.id == id).firstOrNull;
     final session = ref.read(sessionProvider);
-    if (item == null || session == null || item.userId != session.userId ||
+    if (item == null ||
+        session == null ||
+        item.userId != session.userId ||
         item.venueId != session.venueId) {
       return;
     }

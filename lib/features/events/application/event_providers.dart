@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -17,7 +19,10 @@ import '../domain/readiness.dart';
 final eventRepositoryProvider = Provider<EventRepository>((ref) {
   final session = ref.watch(sessionProvider);
   if (AppConfig.hasSupabase) {
-    return SupabaseEventRepository(Supabase.instance.client, session?.venueId ?? '');
+    return SupabaseEventRepository(
+      Supabase.instance.client,
+      session?.venueId ?? '',
+    );
   }
   return _demoRepository(session?.venueId ?? 'demo-venue');
 });
@@ -26,7 +31,10 @@ final eventRepositoryProvider = Provider<EventRepository>((ref) {
 final Map<String, DemoEventRepository> _demoRepositories = {};
 
 DemoEventRepository _demoRepository(String venueId) {
-  return _demoRepositories.putIfAbsent(venueId, () => DemoEventRepository(venueId: venueId));
+  return _demoRepositories.putIfAbsent(
+    venueId,
+    () => DemoEventRepository(venueId: venueId),
+  );
 }
 
 /// Every event visible to the session, with tasks and readiness derived from real task records.
@@ -35,18 +43,29 @@ final eventSnapshotsProvider = FutureProvider<List<EventSnapshot>>((ref) async {
   if (session == null) return const [];
 
   final repo = ref.watch(eventRepositoryProvider);
+  // Re-read other devices' changes and recompute time-dependent readiness even
+  // when nobody makes a local edit. Disposal cancels the previous refresh.
+  final refresh = Timer(const Duration(seconds: 30), ref.invalidateSelf);
+  ref.onDispose(refresh.cancel);
   final now = DateTime.now();
   final events = await repo.listEvents();
   // One request per event, all in flight together instead of one after another.
   final snapshots = await Future.wait([
     for (final event in events)
-      repo.listTasks(event.id).then((tasks) => EventSnapshot(event: event, tasks: tasks, now: now)),
+      repo
+          .listTasks(event.id)
+          .then((tasks) => EventSnapshot(event: event, tasks: tasks, now: now)),
   ]);
-  snapshots.sort((a, b) => a.event.serviceStart.compareTo(b.event.serviceStart));
+  snapshots.sort(
+    (a, b) => a.event.serviceStart.compareTo(b.event.serviceStart),
+  );
   return snapshots;
 });
 
-final eventSnapshotProvider = FutureProvider.family<EventSnapshot, String>((ref, eventId) async {
+final eventSnapshotProvider = FutureProvider.family<EventSnapshot, String>((
+  ref,
+  eventId,
+) async {
   final snapshots = await ref.watch(eventSnapshotsProvider.future);
   return snapshots.firstWhere(
     (snapshot) => snapshot.event.id == eventId,
@@ -91,7 +110,9 @@ class EventActions {
       permissions: _session.permissions,
       requiredTasksComplete: snapshot.requiredTasksComplete,
     );
-    if (!decision.allowed) throw AppFailure(decision.reason ?? 'This change is not allowed.');
+    if (!decision.allowed) {
+      throw AppFailure(decision.reason ?? 'This change is not allowed.');
+    }
 
     await _repo.setStatus(snapshot.event.id, to);
     _refresh();
@@ -106,16 +127,24 @@ class EventActions {
 
     final actionId = newClientRequestId();
     try {
-      await _repo.setTaskStatus(task.id, status,
-          expectedVersion: task.version, actionId: actionId);
+      await _repo.setTaskStatus(
+        task.id,
+        status,
+        expectedVersion: task.version,
+        actionId: actionId,
+      );
     } catch (error) {
       if (!isNetworkError(error)) rethrow;
       // Task status is absolute, so a repeated send is harmless. Queue it for later.
-      await _ref.read(syncControllerProvider.notifier).enqueue(outboxSetTaskStatus, {
-        'task_id': task.id,
-        'status': status.code,
-        'expected_version': task.version,
-      }, id: actionId);
+      await _ref.read(syncControllerProvider.notifier).enqueue(
+        outboxSetTaskStatus,
+        {
+          'task_id': task.id,
+          'status': status.code,
+          'expected_version': task.version,
+        },
+        id: actionId,
+      );
     }
     _refresh();
   }

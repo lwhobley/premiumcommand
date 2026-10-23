@@ -56,6 +56,16 @@ flutter analyze
 flutter test
 ```
 
+Edge Function checks use the root `deno.json`, which keeps npm dependencies in
+Deno's global cache and permits versioned `npm:` and `jsr:` imports used by the
+deployable Supabase entry points. All other recommended lint rules remain enabled.
+
+```bash
+deno lint supabase/functions
+deno check --no-lock supabase/functions/*/index.ts
+deno test --no-lock supabase/functions/
+```
+
 Covered by tests: lifecycle rules, readiness, permissions, dispatch rules, the suite state machine, roster parsing, BEO content, failure classification, the offline outbox, responsive layouts at phone and desktop widths, and tap-target accessibility.
 
 The database rules are covered by rolled-back SQL checks run against the live project during development. They are not yet an automated suite in CI.

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -25,6 +27,9 @@ final staffPhotoUrlProvider = FutureProvider.family<String, String>((
   ref,
   path,
 ) {
+  // Renew before the one-hour signed URL expires, including on long shifts.
+  final refresh = Timer(const Duration(minutes: 55), ref.invalidateSelf);
+  ref.onDispose(refresh.cancel);
   return ref.watch(staffRepositoryProvider).photoUrl(path);
 });
 
