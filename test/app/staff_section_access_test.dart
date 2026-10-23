@@ -28,4 +28,13 @@ void main() {
       expect(AppSection.banquetsCulinary.allows(staff), isFalse);
     },
   );
+
+  test('every section has its own route', () {
+    final paths = AppSection.values.map((s) => s.path).toList();
+    expect(paths.toSet(), hasLength(paths.length));
+    // Navigation highlights whole path segments only.
+    expect(AppSection.staffDeployment.matches('/staff-accounts'), isFalse);
+    expect(AppSection.staffManagement.matches('/staff-accounts'), isTrue);
+    expect(AppSection.eventWorkspace.matches('/events/e1'), isTrue);
+  });
 }

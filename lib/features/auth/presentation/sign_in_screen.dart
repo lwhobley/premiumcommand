@@ -62,7 +62,13 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         );
       }
     } catch (error) {
-      if (mounted) setState(() => _error = userMessageFor(error));
+      if (mounted) {
+        setState(() {
+          _error = userMessageFor(error);
+          // A rejected PIN is cleared so the next attempt starts from the first digit.
+          if (_mode == _SignInMode.staffPin) _pin.clear();
+        });
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -83,7 +89,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
   /// A hardware keyboard can type the PIN too: digits, backspace, and enter.
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent || _mode != _SignInMode.staffPin) {
+    // The keypad only exists with a backend; demo mode signs in by role.
+    if (!AppConfig.hasSupabase ||
+        event is! KeyDownEvent ||
+        _mode != _SignInMode.staffPin) {
       return KeyEventResult.ignored;
     }
     final char = event.character;

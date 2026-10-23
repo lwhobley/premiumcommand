@@ -191,9 +191,7 @@ class _Board extends ConsumerWidget {
           ..sort((a, b) => compareForDispatch(a, b, now, thresholds));
         final closed = all.where((r) => r.status.isTerminal).toList()
           ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        final escalatedCount = open
-            .where((r) => r.isEscalated(now, thresholds))
-            .length;
+        final escalated = escalatedCount(open, now, thresholds);
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -201,11 +199,9 @@ class _Board extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: Text(
-                '${open.length} open${escalatedCount > 0 ? ' · $escalatedCount escalated' : ''}',
+                '${open.length} open${escalated > 0 ? ' · $escalated escalated' : ''}',
                 style: AppText.meta.copyWith(
-                  color: escalatedCount > 0
-                      ? AppColors.accent2700
-                      : AppColors.muted,
+                  color: escalated > 0 ? AppColors.accent2700 : AppColors.muted,
                   fontWeight: FontWeight.w600,
                 ),
               ),

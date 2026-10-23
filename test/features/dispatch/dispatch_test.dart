@@ -1,4 +1,5 @@
 import 'package:cutx_premium_command/core/permissions/app_permission.dart';
+import 'package:cutx_premium_command/features/dispatch/application/dispatch_providers.dart';
 import 'package:cutx_premium_command/features/dispatch/data/dispatch_repository.dart';
 import 'package:cutx_premium_command/features/dispatch/domain/request_lifecycle.dart';
 import 'package:cutx_premium_command/features/dispatch/domain/routing.dart';
@@ -173,6 +174,16 @@ void main() {
     test('a recent normal request is not escalated', () {
       final request = _request(createdAt: now.subtract(const Duration(minutes: 5)));
       expect(request.isEscalated(now), isFalse);
+    });
+
+    test('the board and tab badge count only open escalated requests', () {
+      final old = now.subtract(const Duration(minutes: 30));
+      final requests = [
+        _request(priority: RequestPriority.urgent, createdAt: old),
+        _request(status: RequestStatus.cancelled, priority: RequestPriority.urgent, createdAt: old),
+        _request(createdAt: now.subtract(const Duration(minutes: 5))),
+      ];
+      expect(escalatedCount(requests, now, null), 1);
     });
   });
 

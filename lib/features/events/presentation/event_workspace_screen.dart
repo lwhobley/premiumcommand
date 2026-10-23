@@ -261,7 +261,11 @@ class _ReadinessRow extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 6),
-          ProgressLine(value: readiness.percent),
+          ProgressLine(
+            value: readiness.percent,
+            // The bar takes the readiness state's tone, so it never contradicts the tag.
+            tone: readinessTone(readiness.state),
+          ),
         ],
       ),
     );

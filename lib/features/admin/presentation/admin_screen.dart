@@ -55,7 +55,7 @@ class AdminScreen extends ConsumerWidget {
             title: 'Staff accounts',
             meta: 'Add staff, reset PINs, deactivate or remove accounts',
             trailing: const PhosphorIcon(PhosphorIconsDuotone.caretRight),
-            onTap: () => context.push('/staff'),
+            onTap: () => context.push('/staff-accounts'),
           ),
         ],
         if (backendAvailable && session != null)

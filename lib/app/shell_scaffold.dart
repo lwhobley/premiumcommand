@@ -7,8 +7,6 @@ import '../core/icons/phosphor.dart';
 import '../core/theme/app_theme.dart';
 import '../features/auth/application/session_controller.dart';
 import '../features/dispatch/application/dispatch_providers.dart';
-import '../features/events/application/event_providers.dart';
-import '../features/events/domain/ops_event.dart';
 import '../features/sync/presentation/sync_banner.dart';
 import 'app_section.dart';
 
@@ -62,7 +60,7 @@ class ShellScaffold extends ConsumerWidget {
         }
 
         final primary = _mobilePrimary.where(visible.contains).toList();
-        final selected = primary.indexWhere((s) => location.startsWith(s.path));
+        final selected = primary.indexWhere((s) => s.matches(location));
         return Scaffold(
           body: Column(
             children: [
@@ -105,7 +103,7 @@ class ShellScaffold extends ConsumerWidget {
   }
 }
 
-/// The Dispatch tab icon with a magenta count of escalated requests for events in service.
+/// The Dispatch tab icon with a magenta count of escalated requests.
 class _DispatchIcon extends ConsumerWidget {
   const _DispatchIcon(this.icon);
 
@@ -113,16 +111,7 @@ class _DispatchIcon extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final events = ref.watch(eventSnapshotsProvider).value ?? const [];
-    final thresholds = ref.watch(escalationThresholdsProvider).value;
-    final now = DateTime.now();
-    var escalated = 0;
-    for (final snapshot in events) {
-      if (snapshot.event.status != EventStatus.inService) continue;
-      final requests =
-          ref.watch(eventRequestsProvider(snapshot.event.id)).value ?? const [];
-      escalated += requests.where((r) => r.isEscalated(now, thresholds)).length;
-    }
+    final escalated = ref.watch(escalatedRequestCountProvider);
     return Badge(
       isLabelVisible: escalated > 0,
       label: Text('$escalated'),
@@ -180,7 +169,7 @@ class _Sidebar extends ConsumerWidget {
                     for (final section in sections)
                       _SidebarItem(
                         section: section,
-                        selected: location.startsWith(section.path),
+                        selected: section.matches(location),
                       ),
                   ],
                 ),

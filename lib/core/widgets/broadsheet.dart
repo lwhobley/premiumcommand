@@ -103,21 +103,23 @@ class ScreenHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ?back,
-          ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: AppSpace.minTap),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Kicker(kicker ?? ''),
+          // The kicker line holds the actions too; it takes no space when both are absent.
+          if (kicker != null || actions.isNotEmpty)
+            ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: AppSpace.minTap),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Kicker(kicker ?? ''),
+                    ),
                   ),
-                ),
-                ...actions,
-              ],
+                  ...actions,
+                ],
+              ),
             ),
-          ),
           Text(title, style: AppText.screenTitle),
           if (subtitle != null) ...[
             const SizedBox(height: 8),
