@@ -7,6 +7,8 @@ import '../../../core/errors/failure_kind.dart';
 import '../../../core/permissions/app_permission.dart';
 import '../../auth/application/session_controller.dart';
 import '../../auth/domain/app_session.dart';
+import '../../events/application/event_providers.dart';
+import '../../events/domain/ops_event.dart';
 import '../../sync/application/sync_controller.dart';
 import '../data/dispatch_repository.dart';
 import '../domain/request_lifecycle.dart';
@@ -32,6 +34,37 @@ final eventRequestsProvider = StreamProvider.family<List<ServiceRequest>, String
 final escalationThresholdsProvider = FutureProvider<Map<RequestPriority, Duration>>((ref) {
   final venueId = ref.watch(sessionProvider)?.venueId ?? 'demo-venue';
   return ref.watch(dispatchRepositoryProvider).escalationThresholds(venueId);
+});
+
+/// Ticks every 30 seconds, so time-based escalation is re-checked without a data change.
+final escalationClockProvider = StreamProvider<DateTime>(
+  (ref) => Stream.periodic(const Duration(seconds: 30), (_) => DateTime.now()),
+);
+
+/// Open requests past their escalation limit. The Dispatch board and the phone tab
+/// badge both count with this, so they agree.
+int escalatedCount(
+  Iterable<ServiceRequest> requests,
+  DateTime now,
+  Map<RequestPriority, Duration>? thresholds,
+) => requests.where((r) => r.status.isOpen && r.isEscalated(now, thresholds)).length;
+
+/// Escalated requests across every event the Dispatch board offers (any event not
+/// closed or cancelled). Re-checked on [escalationClockProvider]'s tick.
+final escalatedRequestCountProvider = Provider<int>((ref) {
+  final now = ref.watch(escalationClockProvider).value ?? DateTime.now();
+  final thresholds = ref.watch(escalationThresholdsProvider).value;
+  final snapshots = ref.watch(eventSnapshotsProvider).value ?? const [];
+  var count = 0;
+  for (final snapshot in snapshots) {
+    final status = snapshot.event.status;
+    if (status == EventStatus.closed || status == EventStatus.cancelled) {
+      continue;
+    }
+    final requests = ref.watch(eventRequestsProvider(snapshot.event.id)).value ?? const [];
+    count += escalatedCount(requests, now, thresholds);
+  }
+  return count;
 });
 
 /// Write actions for dispatch. Each checks permissions and lifecycle rules first.

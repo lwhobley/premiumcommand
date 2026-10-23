@@ -2,8 +2,8 @@
 
 The package's Dart classes extend IconData, which Flutter 3.47 made final, so they no longer
 compile. Its fonts still ship with the package, so this writes plain const IconData values for
-them under the package's own names. Only icons used under lib/ are written, which keeps icon
-tree shaking effective.
+them under the package's own names. Only icons used under lib/ or test/ are written, which keeps
+icon tree shaking effective.
 
 Usage: python -I tool/gen_phosphor_icons.py <path to phosphor_flutter-2.1.0>
 """
@@ -23,7 +23,7 @@ icons = dict(
 )
 out_path = root / 'lib/core/icons/phosphor.dart'
 used = set()
-for path in (root / 'lib').rglob('*.dart'):
+for path in [*(root / 'lib').rglob('*.dart'), *(root / 'test').rglob('*.dart')]:
     if path == out_path:
         continue
     used.update(re.findall(r'PhosphorIconsDuotone\.(\w+)', path.read_text(encoding='utf-8')))

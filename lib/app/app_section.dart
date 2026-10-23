@@ -139,7 +139,8 @@ enum AppSection {
     phase: 4,
   ),
   staffManagement(
-    path: '/staff',
+    // Not '/staff': that is Staff Deployment, and a second route there is unreachable.
+    path: '/staff-accounts',
     label: 'Staff Management',
     icon: PhosphorIconsDuotone.userList,
     permission: AppPermission.manageConfiguration,
@@ -171,6 +172,11 @@ enum AppSection {
 
   bool allows(Set<AppPermission> permissions) =>
       permission == null || permissions.contains(permission);
+
+  /// True when [location] is this section or a page under it. Matches whole path
+  /// segments, so '/staff-accounts' is not under '/staff'.
+  bool matches(String location) =>
+      location == path || location.startsWith('$path/');
 
   /// Builds the screen for this section. Sections not yet built show a labeled placeholder.
   Widget buildScreen() {
