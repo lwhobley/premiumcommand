@@ -12,8 +12,9 @@ final documentsRepositoryProvider = Provider<DocumentsRepository>((ref) {
   return DocumentsRepository(Supabase.instance.client);
 });
 
-final venueDocumentsProvider =
-    FutureProvider.family<List<VenueDocument>, String>((ref, venueId) {
+/// Reloaded each time the Documents page opens, so readers see newly added files.
+final venueDocumentsProvider = FutureProvider.autoDispose
+    .family<List<VenueDocument>, String>((ref, venueId) {
       ref.watch(sessionProvider);
       return ref.watch(documentsRepositoryProvider).list(venueId);
     });

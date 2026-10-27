@@ -130,7 +130,8 @@ class _DocumentViewerState extends ConsumerState<DocumentViewer> {
   }
 }
 
-/// PDF pages drawn as images as they are read, with zoom controls.
+/// PDF pages drawn as images when they scroll into view, with zoom controls. Only the
+/// last few drawn pages are kept, so a long document never piles up in memory.
 class _PdfPages extends StatefulWidget {
   const _PdfPages({required this.bytes});
 
@@ -142,47 +143,65 @@ class _PdfPages extends StatefulWidget {
 
 class _PdfPagesState extends State<_PdfPages> {
   static const _zooms = [1.0, 1.5, 2.0, 3.0];
+  static const _keptPages = 12;
 
-  final _pages = <Uint8List>[];
-  StreamSubscription<Uint8List>? _raster;
-  bool _done = false;
-  Object? _error;
+  // Most recently used last.
+  final _drawn = <int, Future<Uint8List>>{};
+  StreamSubscription<PdfRaster>? _counting;
+  int _count = 0;
+  bool _counted = false;
+  bool _countFailed = false;
   int _zoom = 0;
 
   @override
   void initState() {
     super.initState();
-    // Each page is kept as a compressed image, not raw pixels, so long documents fit in memory.
-    _raster = Printing.raster(widget.bytes, dpi: 144)
-        .asyncMap((page) => page.toPng())
-        .listen(
-          (png) {
-            if (mounted) setState(() => _pages.add(png));
-          },
-          onError: (Object error) {
-            if (mounted) setState(() => _error = error);
-          },
-          onDone: () {
-            if (mounted) setState(() => _done = true);
-          },
-        );
+    // Pages are counted by drawing each one tiny and discarding it. Each page appears as
+    // soon as it is counted.
+    _counting = Printing.raster(widget.bytes, dpi: 2).listen(
+      (_) {
+        if (mounted) setState(() => _count++);
+      },
+      onError: (Object _) {
+        if (mounted) setState(() => _countFailed = true);
+      },
+      onDone: () {
+        if (mounted) setState(() => _counted = true);
+      },
+      cancelOnError: true,
+    );
   }
 
   @override
   void dispose() {
-    _raster?.cancel();
+    _counting?.cancel();
     super.dispose();
+  }
+
+  Future<Uint8List> _page(int index) {
+    final drawn =
+        _drawn.remove(index) ??
+        Printing.raster(
+          widget.bytes,
+          pages: [index],
+          dpi: 144,
+        ).first.then((page) => page.toPng());
+    _drawn[index] = drawn;
+    while (_drawn.length > _keptPages) {
+      _drawn.remove(_drawn.keys.first);
+    }
+    return drawn;
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_error != null && _pages.isEmpty) {
-      return const _Problem(message: 'This PDF could not be shown.');
-    }
-    if (_pages.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+    if (_count == 0) {
+      return _countFailed || _counted
+          ? const _Problem(message: 'This PDF could not be shown.')
+          : const Center(child: CircularProgressIndicator());
     }
     final zoom = _zooms[_zoom];
+    final reading = !_counted && !_countFailed;
     return Stack(
       children: [
         LayoutBuilder(
@@ -200,12 +219,20 @@ class _PdfPagesState extends State<_PdfPages> {
                 AppSpace.s,
                 88,
               ),
-              itemCount: _pages.length + (_done ? 0 : 1),
+              itemCount: _count + (reading || _countFailed ? 1 : 0),
               itemBuilder: (context, i) {
-                if (i == _pages.length) {
-                  return const Padding(
-                    padding: EdgeInsets.all(AppSpace.l),
-                    child: Center(child: CircularProgressIndicator()),
+                if (i == _count) {
+                  return Padding(
+                    padding: const EdgeInsets.all(AppSpace.l),
+                    child: Center(
+                      child: _countFailed
+                          ? Text(
+                              'Pages after page $_count could not be read.',
+                              style: AppText.body,
+                              textAlign: TextAlign.center,
+                            )
+                          : const CircularProgressIndicator(),
+                    ),
                   );
                 }
                 return Padding(
@@ -213,19 +240,11 @@ class _PdfPagesState extends State<_PdfPages> {
                   child: Center(
                     child: SizedBox(
                       width: pageWidth,
-                      child: DecoratedBox(
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          boxShadow: [
-                            BoxShadow(color: Color(0x22000000), blurRadius: 4),
-                          ],
-                        ),
-                        child: Image.memory(
-                          _pages[i],
-                          fit: BoxFit.fitWidth,
-                          gaplessPlayback: true,
-                          semanticLabel: 'Page ${i + 1}',
-                        ),
+                      child: _PdfPage(
+                        key: ValueKey(i),
+                        number: i + 1,
+                        image: _page(i),
+                        width: pageWidth,
                       ),
                     ),
                   ),
@@ -271,6 +290,56 @@ class _PdfPagesState extends State<_PdfPages> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// One PDF page: a letter-shaped placeholder while it draws, then the page, or a note
+/// when that page cannot be drawn.
+class _PdfPage extends StatelessWidget {
+  const _PdfPage({
+    super.key,
+    required this.number,
+    required this.image,
+    required this.width,
+  });
+
+  final int number;
+  final Future<Uint8List> image;
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        boxShadow: [BoxShadow(color: Color(0x22000000), blurRadius: 4)],
+      ),
+      child: FutureBuilder<Uint8List>(
+        future: image,
+        builder: (context, snapshot) {
+          final png = snapshot.data;
+          if (png != null) {
+            return Image.memory(
+              png,
+              fit: BoxFit.fitWidth,
+              gaplessPlayback: true,
+              semanticLabel: 'Page $number',
+            );
+          }
+          return SizedBox(
+            height: width * 11 / 8.5,
+            child: Center(
+              child: snapshot.hasError
+                  ? Text(
+                      'Page $number could not be shown.',
+                      style: AppText.body,
+                    )
+                  : const CircularProgressIndicator(),
+            ),
+          );
+        },
+      ),
     );
   }
 }

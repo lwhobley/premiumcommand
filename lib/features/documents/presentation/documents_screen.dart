@@ -112,7 +112,7 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (all.length > 6)
+                if (all.length > 6 || _query.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(bottom: AppSpace.s),
                     child: TextField(
@@ -195,6 +195,12 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
         );
       }
       try {
+        // Checked before reading, so a huge file is never loaded into memory.
+        final size = file.lengthSync() ?? await file.length();
+        final tooBig = size == null
+            ? null
+            : validateDocumentUpload(file.name, size);
+        if (tooBig != null) throw AppFailure(tooBig);
         final bytes = await file.readAsBytes();
         await repo.add(
           venueId: venueId,
@@ -302,8 +308,12 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
     );
     if (ok != true || !mounted) return;
     await runWrite(context, () async {
-      await ref.read(documentsRepositoryProvider).remove(document);
-      ref.invalidate(venueDocumentsProvider(document.venueId));
+      try {
+        await ref.read(documentsRepositoryProvider).remove(document);
+      } finally {
+        // Refresh either way, so a document someone else removed drops off the list.
+        ref.invalidate(venueDocumentsProvider(document.venueId));
+      }
     }, success: 'Document removed.');
   }
 }

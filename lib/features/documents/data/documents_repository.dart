@@ -85,7 +85,8 @@ class DocumentsRepository {
     }
   }
 
-  /// Removes the listing first, so a failed file delete leaves nothing visible behind.
+  /// Removes the listing first, so a failed file delete leaves nothing visible behind. The
+  /// file's path is random and no longer listed, so a file left over is unreachable.
   Future<void> remove(VenueDocument document) async {
     final rows = await _client
         .from('venue_documents')
@@ -97,7 +98,11 @@ class DocumentsRepository {
         'This document was already removed, or you can no longer remove it.',
       );
     }
-    await _client.storage.from(bucket).remove([document.storagePath]);
+    try {
+      await _client.storage.from(bucket).remove([document.storagePath]);
+    } catch (_) {
+      // The document is already gone from the page; there is nothing to retry from there.
+    }
   }
 
   /// The file's contents, held in memory for the viewer. Nothing is saved to the device.

@@ -76,6 +76,7 @@ create policy venue_documents_delete on public.venue_documents for delete to aut
   using (public.has_permission(venue_id, 'manage_configuration'));
 
 -- Only the title and category can change after upload; the file it names stays fixed.
+-- uploaded_by may only be cleared, which is what deleting the uploader's account does.
 create or replace function public.venue_documents_guard()
 returns trigger
 language plpgsql set search_path = public
@@ -86,7 +87,7 @@ begin
      or new.file_name <> old.file_name
      or new.mime_type <> old.mime_type
      or new.size_bytes <> old.size_bytes
-     or new.uploaded_by is distinct from old.uploaded_by
+     or (new.uploaded_by is not null and new.uploaded_by is distinct from old.uploaded_by)
      or new.created_at <> old.created_at then
     raise exception 'Only a document''s title and category can be changed'
       using errcode = 'check_violation';

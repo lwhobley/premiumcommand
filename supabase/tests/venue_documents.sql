@@ -92,6 +92,19 @@ begin
   if v_n <> 0 then raise exception 'Another venue can read files'; end if;
   reset role;
 
+  -- Deleting an uploader's account keeps the document and clears who added it.
+  insert into public.venue_documents (venue_id, title, file_name, storage_path, mime_type, size_bytes, uploaded_by)
+  values (v_venue, 'Left behind', 'left.pdf', v_venue || '/left.pdf', 'application/pdf', 1, v_outsider);
+  delete from auth.users where id = v_outsider;
+  if (select uploaded_by from public.venue_documents where storage_path = v_venue || '/left.pdf') is not null then
+    raise exception 'The deleted uploader is still recorded';
+  end if;
+  begin
+    update public.venue_documents set uploaded_by = v_runner where storage_path = v_venue || '/left.pdf';
+    raise exception 'A document''s uploader was reassigned';
+  exception when check_violation then null;
+  end;
+
   -- The administrator removes it.
   perform set_config('request.jwt.claims', json_build_object('sub', v_director, 'role', 'authenticated')::text, true);
   set local role authenticated;
