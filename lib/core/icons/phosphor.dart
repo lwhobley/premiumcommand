@@ -156,6 +156,12 @@ abstract final class PhosphorIconsDuotone {
     fontPackage: _package,
     matchTextDirection: true,
   );
+  static const fileImage = IconData(
+    0xea25,
+    fontFamily: _family,
+    fontPackage: _package,
+    matchTextDirection: true,
+  );
   static const filePdf = IconData(
     0xe703,
     fontFamily: _family,
@@ -170,6 +176,12 @@ abstract final class PhosphorIconsDuotone {
   );
   static const floppyDisk = IconData(
     0xe249,
+    fontFamily: _family,
+    fontPackage: _package,
+    matchTextDirection: true,
+  );
+  static const folderOpen = IconData(
+    0xe257,
     fontFamily: _family,
     fontPackage: _package,
     matchTextDirection: true,
@@ -230,6 +242,12 @@ abstract final class PhosphorIconsDuotone {
   );
   static const megaphone = IconData(
     0xe325,
+    fontFamily: _family,
+    fontPackage: _package,
+    matchTextDirection: true,
+  );
+  static const minus = IconData(
+    0xe32b,
     fontFamily: _family,
     fontPackage: _package,
     matchTextDirection: true,
@@ -496,6 +514,12 @@ const _secondary = <int, IconData>{
     fontPackage: _package,
     matchTextDirection: true,
   ),
+  0xea25: IconData(
+    0xea24,
+    fontFamily: _family,
+    fontPackage: _package,
+    matchTextDirection: true,
+  ),
   0xe703: IconData(
     0xe702,
     fontFamily: _family,
@@ -510,6 +534,12 @@ const _secondary = <int, IconData>{
   ),
   0xe249: IconData(
     0xe248,
+    fontFamily: _family,
+    fontPackage: _package,
+    matchTextDirection: true,
+  ),
+  0xe257: IconData(
+    0xe256,
     fontFamily: _family,
     fontPackage: _package,
     matchTextDirection: true,
@@ -570,6 +600,12 @@ const _secondary = <int, IconData>{
   ),
   0xe325: IconData(
     0xe324,
+    fontFamily: _family,
+    fontPackage: _package,
+    matchTextDirection: true,
+  ),
+  0xe32b: IconData(
+    0xe32a,
     fontFamily: _family,
     fontPackage: _package,
     matchTextDirection: true,
