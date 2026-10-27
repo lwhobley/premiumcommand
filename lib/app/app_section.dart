@@ -11,6 +11,7 @@ import '../features/operations/presentation/communications_screen.dart';
 import '../features/operations/presentation/culinary_screen.dart';
 import '../features/operations/presentation/inspections_screen.dart';
 import '../features/dispatch/presentation/dispatch_screen.dart';
+import '../features/documents/presentation/documents_screen.dart';
 import '../features/staffing/presentation/staff_screen.dart';
 import '../features/suites/presentation/premium_spaces_screen.dart';
 import '../features/sales/presentation/sales_screen.dart';
@@ -116,6 +117,15 @@ enum AppSection {
     permission: null,
     phase: 3,
   ),
+  documents(
+    path: '/documents',
+    label: 'Documents',
+    icon: PhosphorIconsDuotone.folderOpen,
+    // Everyone at the venue can view. Only administrators can add or remove documents,
+    // which the screen and the database both check.
+    permission: null,
+    phase: 4,
+  ),
   closeout(
     path: '/closeout',
     label: 'Event Closeout & Reports',
@@ -194,6 +204,7 @@ enum AppSection {
       AppSection.inspections => const InspectionsScreen(),
       AppSection.communications => const CommunicationsScreen(),
       AppSection.chat => const ChatScreen(),
+      AppSection.documents => const DocumentsScreen(),
       AppSection.staffManagement => const StaffManagementScreen(),
       AppSection.closeout => const CloseoutScreen(),
       AppSection.meetingNotes => const MeetingNotesScreen(),
