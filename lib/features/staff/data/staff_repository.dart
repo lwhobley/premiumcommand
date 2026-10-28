@@ -174,7 +174,10 @@ class StaffRepository {
         .from('event_staff')
         .select(
           'id, role_label, department, zone, station, acknowledged_at, '
-          'events(name, status), suite_event_assignments(venue_suites(name))',
+          // Named links: these tables have two foreign keys to each target since migration 0015.
+          'events!event_staff_event_id_fkey(name, status), '
+          'suite_event_assignments!event_staff_suite_assignment_id_fkey'
+          '(venue_suites!suite_event_assignments_suite_id_fkey(name))',
         )
         .eq('user_id', userId)
         .order('created_at');
