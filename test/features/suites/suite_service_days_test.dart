@@ -1,7 +1,14 @@
+import 'package:cutx_premium_command/features/auth/application/session_controller.dart';
+import 'package:cutx_premium_command/features/auth/domain/app_session.dart';
+import 'package:cutx_premium_command/features/events/application/event_providers.dart';
+import 'package:cutx_premium_command/features/events/domain/ops_event.dart';
+import 'package:cutx_premium_command/features/events/domain/readiness.dart';
+import 'package:cutx_premium_command/features/suites/application/service_day_providers.dart';
 import 'package:cutx_premium_command/features/suites/domain/suite.dart';
 import 'package:cutx_premium_command/features/suites/domain/suite_order.dart';
 import 'package:cutx_premium_command/features/suites/domain/suite_service_days.dart';
 import 'package:cutx_premium_command/features/suites/presentation/suite_map_section.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _chicago = 'America/Chicago';
@@ -86,6 +93,55 @@ void main() {
     expect(
       orderServiceDays(order, quarterfinals, _chicago),
       quarterfinals.toSet(),
+    );
+  });
+
+  test('an order dated only outside the event serves no day', () {
+    final delivered = _order(
+      'a201',
+      ['The MVP'],
+      deliverAt: DateTime.utc(2026, 11, 2, 18), // the day before the event
+    );
+    expect(orderServiceDays(delivered, quarterfinals, _chicago), isEmpty);
+    final named = _order('a228', ['Mon Nov 2 · Popcorn']);
+    expect(orderServiceDays(named, quarterfinals, _chicago), isEmpty);
+  });
+
+  test('the picked day survives the event list reloading', () async {
+    final event = OpsEvent(
+      id: 'qf',
+      venueId: 'v1',
+      name: 'Quarterfinals',
+      type: EventType.concert,
+      serviceStart: DateTime.utc(2026, 11, 3, 12),
+      serviceEnd: DateTime.utc(2026, 11, 6, 23),
+      guaranteedGuests: 100,
+      managerName: 'M',
+      status: EventStatus.setup,
+    );
+    final container = ProviderContainer(
+      overrides: [
+        sessionProvider.overrideWith(_VenueSession.new),
+        eventSnapshotsProvider.overrideWith(
+          (ref) async => [
+            EventSnapshot(event: event, tasks: const [], now: DateTime.now()),
+          ],
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.listen(selectedServiceDayProvider('qf'), (_, _) {});
+    await container.read(eventSnapshotProvider('qf').future);
+    container
+        .read(selectedServiceDayProvider('qf').notifier)
+        .select(DateTime(2026, 11, 5));
+
+    container.invalidate(eventSnapshotsProvider);
+    await container.read(eventSnapshotProvider('qf').future);
+
+    expect(
+      container.read(selectedServiceDayProvider('qf')),
+      DateTime(2026, 11, 5),
     );
   });
 
@@ -174,4 +230,16 @@ void main() {
     expect(suites.firstWhere((s) => s['id'] == '229')['striped'], isTrue);
     expect(suites.firstWhere((s) => s['id'] == '228')['striped'], isFalse);
   });
+}
+
+class _VenueSession extends SessionController {
+  @override
+  AppSession? build() => const AppSession(
+    userId: 'u1',
+    displayName: 'Director',
+    venueId: 'v1',
+    venueName: 'CUTX',
+    timeZone: _chicago,
+    roles: {},
+  );
 }

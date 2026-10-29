@@ -31,6 +31,10 @@ class SelectedServiceDay extends Notifier<DateTime?> {
   @override
   DateTime? build() {
     final days = ref.watch(eventServiceDaysProvider(eventId));
+    // Events reload every 30 seconds, rebuilding this: keep the day picked while the event
+    // still covers it.
+    final picked = stateOrNull;
+    if (picked != null && days.contains(picked)) return picked;
     final timeZone = ref.watch(sessionProvider)?.timeZone ?? 'UTC';
     return defaultServiceDay(days, DateTime.now(), timeZone);
   }

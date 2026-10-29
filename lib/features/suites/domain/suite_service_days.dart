@@ -46,21 +46,22 @@ DateTime? _leadingDay(String text, List<DateTime> eventDays) {
 }
 
 /// The days of [eventDays] an order serves: days named at the start of its items, and the
-/// day it is delivered. An order that names no day serves every day of the event.
+/// day it is delivered. An order that names no day serves every day of the event; one whose
+/// days all fall outside the event serves none.
 Set<DateTime> orderServiceDays(
   SuiteOrder order,
   List<DateTime> eventDays,
   String timeZone,
 ) {
-  final days = <DateTime>{
-    for (final item in order.items) ?_leadingDay(item.name, eventDays),
-  };
   final deliverAt = order.deliverAt;
-  if (deliverAt != null) {
-    final delivered = _dateOf(atVenue(deliverAt, timeZone));
-    if (eventDays.contains(delivered)) days.add(delivered);
-  }
-  return days.isEmpty ? eventDays.toSet() : days;
+  final dated =
+      deliverAt != null ||
+      order.items.any((item) => _dayPrefix.hasMatch(item.name.trim()));
+  if (!dated) return eventDays.toSet();
+  return {
+    for (final item in order.items) ?_leadingDay(item.name, eventDays),
+    if (deliverAt != null) _dateOf(atVenue(deliverAt, timeZone)),
+  }.where(eventDays.contains).toSet();
 }
 
 /// Suite numbers named after "Suite" or "Suites": "Party Suite 228/229", "Suites 201, 202".

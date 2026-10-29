@@ -167,6 +167,10 @@ class _Board extends ConsumerWidget {
     final suites = ref.watch(suitesProvider(eventId));
     final beoAssignments = ref.watch(beoAssignmentIdsProvider(eventId));
     final day = ref.watch(selectedServiceDayProvider(eventId));
+    // Stripes come from the orders and the BEO; without them the board would read as no BEO.
+    final marksFailed =
+        ref.watch(suiteOrdersProvider(eventId)).hasError ||
+        ref.watch(beoProvider(eventId)).hasError;
     return suites.when(
       loading: () => const Padding(
         padding: EdgeInsets.symmetric(vertical: 24),
@@ -214,6 +218,23 @@ class _Board extends ConsumerWidget {
               ),
               const SizedBox(height: AppSpace.m),
               _Legend(day: day),
+            ],
+            if (marksFailed) ...[
+              const SizedBox(height: AppSpace.s),
+              Text(
+                'BEO stripes could not load, so suites with a BEO may show plain.',
+                style: AppText.body,
+              ),
+              Transform.translate(
+                offset: const Offset(-10, 0),
+                child: TextButton(
+                  onPressed: () {
+                    ref.invalidate(suiteOrdersProvider(eventId));
+                    ref.invalidate(beoProvider(eventId));
+                  },
+                  child: const Text('Try again'),
+                ),
+              ),
             ],
             if (listed.isNotEmpty) ...[
               const SectionHeading('Clubs and floor'),
