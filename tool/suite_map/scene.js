@@ -104,13 +104,42 @@ function labelSprite(text, { size = 2.4, background = 'rgba(255,255,255,0.92)', 
   return sprite;
 }
 
+// A space with a BEO order on the selected day ({striped: true}): diagonal stripes
+// multiplied over its color. One shared texture, repeated every STRIPE_PERIOD scene units.
+const STRIPE_PERIOD = 1.2;
+let stripeTexture = null;
+
+function stripes() {
+  if (stripeTexture) return stripeTexture;
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, 64, 64);
+  ctx.strokeStyle = '#5c5c5c';
+  ctx.lineWidth = 16;
+  for (const x of [-64, 0, 64]) {
+    ctx.beginPath();
+    ctx.moveTo(x, 64);
+    ctx.lineTo(x + 64, 0);
+    ctx.stroke();
+  }
+  stripeTexture = new THREE.CanvasTexture(canvas);
+  stripeTexture.colorSpace = THREE.SRGBColorSpace;
+  stripeTexture.wrapS = THREE.RepeatWrapping;
+  stripeTexture.wrapT = THREE.RepeatWrapping;
+  stripeTexture.repeat.set(1 / STRIPE_PERIOD, 1 / STRIPE_PERIOD);
+  return stripeTexture;
+}
+
 function dispose(object) {
   object.traverse((node) => {
     node.geometry?.dispose();
     const materials = Array.isArray(node.material) ? node.material : [node.material];
     for (const m of materials) {
       if (!m || m === floorMaterial || m === levelMaterial || m === bowlMaterial) continue;
-      m.map?.dispose();
+      if (m.map !== stripeTexture) m.map?.dispose();
       m.dispose();
     }
   });
@@ -140,6 +169,7 @@ function render(payload) {
       prism(edge, [], 0.2),
       new THREE.MeshStandardMaterial({
         color: new THREE.Color(floor.muted ? 0x9e9a92 : floor.color),
+        map: floor.striped ? stripes() : null,
         roughness: 0.9,
         emissive: new THREE.Color(selected ? 0x3a2c12 : 0x000000),
       }),
@@ -165,6 +195,7 @@ function render(payload) {
       prism(payload.footprint, [edge], 0.2),
       new THREE.MeshStandardMaterial({
         color: new THREE.Color(concourse.muted ? 0xb9b2a5 : concourse.color),
+        map: concourse.striped ? stripes() : null,
         roughness: 0.9,
         emissive: new THREE.Color(selected ? 0x3a2c12 : 0x000000),
       }),
@@ -190,6 +221,7 @@ function render(payload) {
     const selected = suite.id === payload.selected;
     const material = new THREE.MeshStandardMaterial({
       color: new THREE.Color(suite.color),
+      map: suite.striped ? stripes() : null,
       roughness: 0.6,
       transparent: true,
       opacity: suite.muted ? 0.55 : 0.95,

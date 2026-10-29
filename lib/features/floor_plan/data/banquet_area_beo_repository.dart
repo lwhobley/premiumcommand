@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../../auth/application/session_controller.dart';
 
 final banquetAreaBeoRepositoryProvider = Provider<BanquetAreaBeoRepository>((
@@ -51,7 +52,11 @@ class BanquetAreaBeoRepository {
   Future<List<BanquetAreaBeoLink>> listForArea(String areaId) async {
     final rows = await _client
         .from('event_banquet_areas')
-        .select('events!inner(id,name,service_start,beo_documents(id,title))')
+        // Named link: the one-to-one event_id key, so each event has one BEO object. Since
+        // migration 0015 a second key makes an unnamed embed ambiguous.
+        .select(
+          'events!inner(id,name,service_start,beo_documents!beo_documents_event_id_fkey(id,title))',
+        )
         .eq('banquet_area_id', areaId);
     final links = rows
         .cast<Map<String, dynamic>>()

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/icons/phosphor.dart';
 
@@ -11,12 +12,14 @@ import '../../../core/widgets/tag.dart';
 import '../../auth/application/session_controller.dart';
 import '../../planning/application/planning_providers.dart';
 import '../../planning/presentation/planning_widgets.dart';
+import '../application/service_day_providers.dart';
 import '../domain/premium_level_layout.dart';
 import '../domain/suite.dart';
 import 'suite_map_section.dart';
 
 /// Premium Spaces: suite board for one event. Suites are tiles filled by state; clubs and
 /// the floor are listed below. Tapping a space opens its state, attendant, and next step.
+/// For events of more than one day a day picker sets which day's BEO orders are striped.
 class PremiumSpacesScreen extends ConsumerWidget {
   const PremiumSpacesScreen({super.key});
 
@@ -44,6 +47,7 @@ class PremiumSpacesScreen extends ConsumerWidget {
           : null,
       children: [
         const EventPicker(),
+        if (eventId != null) _DayPicker(eventId: eventId),
         if (eventId != null && session != null)
           SuiteMapSection(venueId: session.venueId, eventId: eventId),
         if (eventId != null) _Board(eventId: eventId, permissions: permissions),
@@ -99,6 +103,47 @@ class PremiumSpacesScreen extends ConsumerWidget {
   }
 }
 
+/// "Fri Oct 30".
+String serviceDayLabel(DateTime day) => DateFormat('EEE MMM d').format(day);
+
+/// Day chips for an event that runs more than one day. Hidden for a single-day event.
+class _DayPicker extends ConsumerWidget {
+  const _DayPicker({required this.eventId});
+
+  final String eventId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final days = ref.watch(eventServiceDaysProvider(eventId));
+    if (days.length < 2) return const SizedBox.shrink();
+    final selected = ref.watch(selectedServiceDayProvider(eventId));
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpace.l),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Day', style: AppText.meta),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final day in days)
+                ChoiceChip(
+                  label: Text(serviceDayLabel(day)),
+                  selected: day == selected,
+                  onSelected: (_) => ref
+                      .read(selectedServiceDayProvider(eventId).notifier)
+                      .select(day),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Tile label color with at least 4 to 1 contrast on [suiteStateColor]: paper on the
 /// dark accent700 fill, ink on every other fill.
 Color _tileTextColor(SuiteState state) =>
@@ -120,6 +165,12 @@ class _Board extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final suites = ref.watch(suitesProvider(eventId));
+    final beoAssignments = ref.watch(beoAssignmentIdsProvider(eventId));
+    final day = ref.watch(selectedServiceDayProvider(eventId));
+    // Stripes come from the orders and the BEO; without them the board would read as no BEO.
+    final marksFailed =
+        ref.watch(suiteOrdersProvider(eventId)).hasError ||
+        ref.watch(beoProvider(eventId)).hasError;
     return suites.when(
       loading: () => const Padding(
         padding: EdgeInsets.symmetric(vertical: 24),
@@ -161,11 +212,29 @@ class _Board extends ConsumerWidget {
                 itemCount: tiles.length,
                 itemBuilder: (context, index) => _SuiteTile(
                   suite: tiles[index],
+                  beoDay: beoAssignments.contains(tiles[index].id) ? day : null,
                   onTap: () => _openDetail(context, ref, tiles[index]),
                 ),
               ),
               const SizedBox(height: AppSpace.m),
-              const _Legend(),
+              _Legend(day: day),
+            ],
+            if (marksFailed) ...[
+              const SizedBox(height: AppSpace.s),
+              Text(
+                'BEO stripes could not load, so suites with a BEO may show plain.',
+                style: AppText.body,
+              ),
+              Transform.translate(
+                offset: const Offset(-10, 0),
+                child: TextButton(
+                  onPressed: () {
+                    ref.invalidate(suiteOrdersProvider(eventId));
+                    ref.invalidate(beoProvider(eventId));
+                  },
+                  child: const Text('Try again'),
+                ),
+              ),
             ],
             if (listed.isNotEmpty) ...[
               const SectionHeading('Clubs and floor'),
@@ -173,7 +242,11 @@ class _Board extends ConsumerWidget {
                 OpenRow(
                   title: space.suiteName,
                   trailing: Tag(space.state.label, suiteStateTone(space.state)),
-                  meta: _metaLine(space),
+                  meta: [
+                    _metaLine(space),
+                    if (beoAssignments.contains(space.id) && day != null)
+                      'BEO on ${serviceDayLabel(day)}',
+                  ].join(' · '),
                   onTap: () => _openDetail(context, ref, space),
                 ),
             ],
@@ -257,43 +330,57 @@ String _metaLine(SuiteAssignment suite) => [
   'Attendant: ${suite.attendantName.isEmpty ? 'unassigned' : suite.attendantName}',
 ].join(' · ');
 
-/// One suite: a 56-high tile filled by its state, labeled with its short name.
+/// One suite: a 56-high tile filled by its state, labeled with its short name. A suite
+/// with a BEO order on the selected day ([beoDay]) is striped and marked "BEO".
 class _SuiteTile extends StatelessWidget {
-  const _SuiteTile({required this.suite, required this.onTap});
+  const _SuiteTile({required this.suite, required this.onTap, this.beoDay});
 
   final SuiteAssignment suite;
   final VoidCallback onTap;
+  final DateTime? beoDay;
 
   @override
   Widget build(BuildContext context) {
+    final beo = beoDay == null ? '' : ' · BEO on ${serviceDayLabel(beoDay!)}';
     return Semantics(
       button: true,
-      label: '${suite.suiteName}, ${suite.state.label}',
+      label:
+          '${suite.suiteName}, ${suite.state.label}${beo.replaceFirst(' ·', ',')}',
       excludeSemantics: true,
       child: Tooltip(
-        message: '${suite.suiteName} · ${suite.state.label}',
+        message: '${suite.suiteName} · ${suite.state.label}$beo',
         child: Material(
           color: suiteStateColor(suite.state),
           borderRadius: AppRadius.all,
+          clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onTap,
             borderRadius: AppRadius.all,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  mapLabel(suite.suiteName),
-                  maxLines: 1,
-                  softWrap: false,
-                  overflow: TextOverflow.ellipsis,
-                  // 19 w600 is large text, which keeps the label legible on every fill.
-                  style: AppText.rowTitle.copyWith(
-                    fontSize: 19,
-                    color: _tileTextColor(suite.state),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (beoDay != null)
+                  CustomPaint(painter: BeoStripePainter(suite.state)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      mapLabel(suite.suiteName),
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
+                      // 19 w600 is large text, which keeps the label legible on every fill.
+                      style: AppText.rowTitle.copyWith(
+                        fontSize: 19,
+                        color: _tileTextColor(suite.state),
+                      ),
+                    ),
                   ),
                 ),
-              ),
+                if (beoDay != null)
+                  const Positioned(top: 3, right: 3, child: _BeoMark()),
+              ],
             ),
           ),
         ),
@@ -302,9 +389,70 @@ class _SuiteTile extends StatelessWidget {
   }
 }
 
-/// A swatch and label for each suite state.
+/// Diagonal stripes over a tile's state fill: paper on the dark in-service fill, ink on
+/// the others, faint enough that the state color and label stay readable.
+class BeoStripePainter extends CustomPainter {
+  const BeoStripePainter(this.state);
+
+  final SuiteState state;
+
+  static const gap = 9.0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = state == SuiteState.inService
+          ? AppColors.background.withValues(alpha: 0.35)
+          : AppColors.text.withValues(alpha: 0.2)
+      ..strokeWidth = 3;
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+    for (var x = -size.height; x < size.width; x += gap) {
+      canvas.drawLine(
+        Offset(x, size.height),
+        Offset(x + size.height, 0),
+        paint,
+      );
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(BeoStripePainter old) => old.state != state;
+}
+
+/// The small "BEO" mark in a striped tile's corner.
+class _BeoMark extends StatelessWidget {
+  const _BeoMark();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.accent2700,
+        borderRadius: AppRadius.all,
+      ),
+      child: const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+        child: Text(
+          'BEO',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.4,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A swatch and label for each suite state, and the striped BEO swatch for [day].
 class _Legend extends StatelessWidget {
-  const _Legend();
+  const _Legend({this.day});
+
+  final DateTime? day;
 
   @override
   Widget build(BuildContext context) {
@@ -326,6 +474,30 @@ class _Legend extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               Text(state.label, style: AppText.meta),
+            ],
+          ),
+        if (day != null)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 12,
+                height: 12,
+                child: ClipRRect(
+                  borderRadius: AppRadius.all,
+                  child: ColoredBox(
+                    color: suiteStateColor(SuiteState.notStarted),
+                    child: const CustomPaint(
+                      painter: BeoStripePainter(SuiteState.notStarted),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Striped: BEO on ${serviceDayLabel(day!)}',
+                style: AppText.meta,
+              ),
             ],
           ),
       ],

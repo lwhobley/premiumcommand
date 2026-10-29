@@ -54,13 +54,18 @@ class PlanningRepository {
   Future<List<SuiteAssignment>> listSuites(String eventId) async {
     final rows = await _client
         .from('suite_event_assignments')
-        .select('*, venue_suites(name, location, service_zone, map_area)')
-        .eq('event_id', eventId)
-        .order('created_at');
+        // Named link: since migration 0015 suite_event_assignments has two foreign keys to
+        // venue_suites, and an unnamed embed is rejected as ambiguous.
+        .select(
+          '*, venue_suites!suite_event_assignments_suite_id_fkey(name, location, service_zone, map_area)',
+        )
+        .eq('event_id', eventId);
+    // Suite order: 201, 202, … (the table has no creation time to sort by).
     return rows
         .cast<Map<String, dynamic>>()
         .map(SuiteAssignment.fromJson)
-        .toList();
+        .toList()
+      ..sort((a, b) => a.suiteName.compareTo(b.suiteName));
   }
 
   /// Configuration write. Row-level security allows this only with manage_configuration.

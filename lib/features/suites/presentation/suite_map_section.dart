@@ -13,6 +13,7 @@ import '../../../core/widgets/tag.dart';
 import '../../auth/application/session_controller.dart';
 import '../../planning/application/planning_providers.dart';
 import '../../planning/presentation/planning_widgets.dart';
+import '../application/service_day_providers.dart';
 import '../domain/premium_level_layout.dart';
 import '../domain/suite.dart';
 import '../domain/suite_order.dart';
@@ -90,10 +91,13 @@ Map<String, String> mapLabelsFor(List<Map<String, dynamic>> venueSuites) => {
   for (final s in venueSuites) ?_areaOf(s): mapLabel(s['name'] as String),
 };
 
+/// [striped] spaces are drawn with diagonal stripes over their color: a BEO order on the
+/// selected day.
 Map<String, Object?> buildSuiteColorScene(
   Map<String, Color> colors, {
   String? selected,
   Map<String, String> labels = const {},
+  Set<String> striped = const {},
 }) => {
   'center': [610.5, 415.2],
   'bowlEdge': _points(premiumLevelBowlEdge),
@@ -107,6 +111,7 @@ Map<String, Object?> buildSuiteColorScene(
         'points': _points(suite.points),
         'color': _hex(colors[suite.number] ?? SuiteMapStatus.unassigned.color),
         'muted': !colors.containsKey(suite.number),
+        'striped': striped.contains(suite.number),
       },
     for (final club in premiumLevelClubs)
       {
@@ -115,6 +120,7 @@ Map<String, Object?> buildSuiteColorScene(
         'points': _points(club.points),
         'color': _hex(colors[club.mapArea] ?? SuiteMapStatus.unassigned.color),
         'muted': !colors.containsKey(club.mapArea),
+        'striped': striped.contains(club.mapArea),
       },
   ],
   // Drawn from bowlEdge at ground level; muted keeps the plain floor color.
@@ -123,6 +129,7 @@ Map<String, Object?> buildSuiteColorScene(
     'label': labels[arenaFloorArea] ?? 'Arena floor',
     'color': _hex(colors[arenaFloorArea] ?? SuiteMapStatus.unassigned.color),
     'muted': !colors.containsKey(arenaFloorArea),
+    'striped': striped.contains(arenaFloorArea),
   },
   // Drawn at ground level between footprint and bowlEdge, under the premium level.
   'concourse': {
@@ -130,6 +137,7 @@ Map<String, Object?> buildSuiteColorScene(
     'label': labels[concourseArea] ?? 'Concourse',
     'color': _hex(colors[concourseArea] ?? SuiteMapStatus.unassigned.color),
     'muted': !colors.containsKey(concourseArea),
+    'striped': striped.contains(concourseArea),
   },
   // Seating sections, for orientation only: the scene draws them but never selects them.
   'sections': [
@@ -153,11 +161,22 @@ Map<String, Object?> buildSuiteMapScene(
   Map<String, SuiteMapStatus> statuses, {
   String? selected,
   Map<String, String> labels = const {},
+  Set<String> striped = const {},
 }) => buildSuiteColorScene(
   {for (final entry in statuses.entries) entry.key: entry.value.color},
   selected: selected,
   labels: labels,
+  striped: striped,
 );
+
+/// Map areas of the assignments in [assignmentIds]: the spaces to stripe.
+Set<String> stripedAreas(
+  List<SuiteAssignment> assignments,
+  Set<String> assignmentIds,
+) => {
+  for (final a in assignments)
+    if (assignmentIds.contains(a.id)) ?a.planArea,
+};
 
 /// Clickable 3D premium-level map for the selected event. Hidden when none of
 /// the venue's configured suites match a suite number on the plan.
@@ -190,6 +209,11 @@ class _SuiteMapSectionState extends ConsumerState<SuiteMapSection> {
     final orders =
         ref.watch(suiteOrdersProvider(widget.eventId)).value ?? const [];
     final statuses = suiteMapStatuses(assignments, orders);
+    final day = ref.watch(selectedServiceDayProvider(widget.eventId));
+    final striped = stripedAreas(
+      assignments,
+      ref.watch(beoAssignmentIdsProvider(widget.eventId)),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -223,6 +247,11 @@ class _SuiteMapSectionState extends ConsumerState<SuiteMapSection> {
                   ),
                 ],
               ),
+            if (day != null)
+              Text(
+                'Striped: BEO on ${DateFormat('EEE MMM d').format(day)} (${striped.length})',
+                style: AppText.meta,
+              ),
           ],
         ),
         const SizedBox(height: 10),
@@ -235,6 +264,7 @@ class _SuiteMapSectionState extends ConsumerState<SuiteMapSection> {
                 statuses,
                 selected: _selected,
                 labels: mapLabelsFor(venueSuites),
+                striped: striped,
               ),
               onSuiteTap: _open,
             ),
