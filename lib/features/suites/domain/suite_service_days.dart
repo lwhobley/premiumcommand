@@ -33,9 +33,12 @@ final _dayPrefix = RegExp(
   caseSensitive: false,
 );
 
+/// Whether a line starts with a day ("Fri Oct 30 · …"), inside the event or not.
+bool startsWithServiceDay(String text) => _dayPrefix.hasMatch(text.trim());
+
 /// The event day a line starts with ("Fri Oct 30 · …"), or null when it names none or a day
 /// outside the event.
-DateTime? _leadingDay(String text, List<DateTime> eventDays) {
+DateTime? leadingServiceDay(String text, List<DateTime> eventDays) {
   final match = _dayPrefix.firstMatch(text.trim());
   if (match == null) return null;
   final month = _months.indexOf(match.group(1)!.toLowerCase()) + 1;
@@ -56,10 +59,10 @@ Set<DateTime> orderServiceDays(
   final deliverAt = order.deliverAt;
   final dated =
       deliverAt != null ||
-      order.items.any((item) => _dayPrefix.hasMatch(item.name.trim()));
+      order.items.any((item) => startsWithServiceDay(item.name));
   if (!dated) return eventDays.toSet();
   return {
-    for (final item in order.items) ?_leadingDay(item.name, eventDays),
+    for (final item in order.items) ?leadingServiceDay(item.name, eventDays),
     if (deliverAt != null) _dateOf(atVenue(deliverAt, timeZone)),
   }.where(eventDays.contains).toSet();
 }
@@ -80,7 +83,7 @@ Set<String> beoTimelineSuites(
 ) {
   final numbers = <String>{};
   for (final line in timeline.split('\n')) {
-    final lineDay = _leadingDay(line, eventDays);
+    final lineDay = leadingServiceDay(line, eventDays);
     final onDay = lineDay == null
         ? eventDays.length == 1 && eventDays.first == day
         : lineDay == day;

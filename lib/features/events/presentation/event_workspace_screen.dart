@@ -9,6 +9,7 @@ import '../../../core/time/venue_time.dart';
 import '../../../core/widgets/broadsheet.dart';
 import '../../../core/widgets/tag.dart';
 import '../../auth/application/session_controller.dart';
+import '../../beo/presentation/event_beo_card.dart';
 import '../../floor_plan/presentation/event_floor_plan_card.dart';
 import '../../meeting_notes/presentation/event_meeting_notes_card.dart';
 import '../application/event_providers.dart';
@@ -98,6 +99,7 @@ class _WorkspaceBody extends ConsumerWidget {
           const SizedBox(height: AppSpace.m),
           Text(event.notes, style: AppText.body),
         ],
+        EventBeoCard(eventId: event.id),
         const SectionHeading('Department readiness'),
         for (final dept in snapshot.departments) _ReadinessRow(readiness: dept),
         Text(

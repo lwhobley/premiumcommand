@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
 import '../../../core/icons/phosphor.dart';
 
@@ -15,6 +14,7 @@ import '../../planning/presentation/planning_widgets.dart';
 import '../application/service_day_providers.dart';
 import '../domain/premium_level_layout.dart';
 import '../domain/suite.dart';
+import 'service_day_picker.dart';
 import 'suite_map_section.dart';
 
 /// Premium Spaces: suite board for one event. Suites are tiles filled by state; clubs and
@@ -47,7 +47,7 @@ class PremiumSpacesScreen extends ConsumerWidget {
           : null,
       children: [
         const EventPicker(),
-        if (eventId != null) _DayPicker(eventId: eventId),
+        if (eventId != null) ServiceDayPicker(eventId: eventId),
         if (eventId != null && session != null)
           SuiteMapSection(venueId: session.venueId, eventId: eventId),
         if (eventId != null) _Board(eventId: eventId, permissions: permissions),
@@ -100,47 +100,6 @@ class PremiumSpacesScreen extends ConsumerWidget {
           .assignSuite(venueId: venueId, eventId: eventId, suiteId: picked);
       ref.invalidate(suitesProvider(eventId));
     }, success: 'Added to the event.');
-  }
-}
-
-/// "Fri Oct 30".
-String serviceDayLabel(DateTime day) => DateFormat('EEE MMM d').format(day);
-
-/// Day chips for an event that runs more than one day. Hidden for a single-day event.
-class _DayPicker extends ConsumerWidget {
-  const _DayPicker({required this.eventId});
-
-  final String eventId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final days = ref.watch(eventServiceDaysProvider(eventId));
-    if (days.length < 2) return const SizedBox.shrink();
-    final selected = ref.watch(selectedServiceDayProvider(eventId));
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpace.l),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Day', style: AppText.meta),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              for (final day in days)
-                ChoiceChip(
-                  label: Text(serviceDayLabel(day)),
-                  selected: day == selected,
-                  onSelected: (_) => ref
-                      .read(selectedServiceDayProvider(eventId).notifier)
-                      .select(day),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
   }
 }
 
