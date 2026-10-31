@@ -37,6 +37,18 @@ final _dayPrefix = RegExp(
 /// Whether a line starts with a day ("Fri Oct 30 · …"), inside the event or not.
 bool startsWithServiceDay(String text) => _dayPrefix.hasMatch(text.trim());
 
+/// Whether a line is a day heading with its entries on the lines under it ("Tue Nov 3:",
+/// "Sat Nov 7 (invoice #49)"), rather than a day with its entry on the same line
+/// ("Sat Nov 7: food delivery 3:00 PM").
+bool isServiceDayHeading(String text) {
+  final line = text.trim();
+  final match = _dayPrefix.firstMatch(line);
+  if (match == null) return false;
+  final rest = line.substring(match.end).trim();
+  final colon = rest.indexOf(':');
+  return colon == -1 || colon == rest.length - 1;
+}
+
 /// The event day a line starts with ("Fri Oct 30 · …"), or null when it names none or a day
 /// outside the event.
 DateTime? leadingServiceDay(String text, List<DateTime> eventDays) {

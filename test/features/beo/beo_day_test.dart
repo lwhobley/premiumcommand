@@ -87,6 +87,38 @@ void main() {
     },
   );
 
+  test('plain lines under a day heading stay with that day', () {
+    final content = _content(
+      timeline:
+          'Tue Nov 3: food delivery 3:00 PM\n'
+          'Thu Nov 5: food delivery 3:00 PM',
+      menu:
+          'Tue Nov 3:\n'
+          'Chicken\n'
+          'Thu Nov 5:\n'
+          'Salmon\n'
+          '\n'
+          'All platters labelled.',
+    );
+    expect(beoDay(content, DateTime(2026, 11, 3), quarterfinals).menu, [
+      'Tue Nov 3:',
+      'Chicken',
+      'All platters labelled.',
+    ]);
+    expect(beoDay(content, DateTime(2026, 11, 5), quarterfinals).menu, [
+      'Thu Nov 5:',
+      'Salmon',
+      'All platters labelled.',
+    ]);
+  });
+
+  test('a day with only dietary notes is not empty', () {
+    final content = _content(dietary: 'Wed Nov 4: one guest is gluten free.');
+    final nov4 = beoDay(content, DateTime(2026, 11, 4), quarterfinals);
+    expect(nov4.dietary, ['Wed Nov 4: one guest is gluten free.']);
+    expect(nov4.isEmpty, isFalse);
+  });
+
   test('in a one-day event every line counts', () {
     final content = _content(
       timeline: 'Food delivery 12:00 PM · Suite 201',

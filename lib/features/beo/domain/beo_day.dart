@@ -15,13 +15,16 @@ class BeoDay {
   final List<String> beverage;
   final List<String> dietary;
 
-  bool get isEmpty => schedule.isEmpty && menu.isEmpty && beverage.isEmpty;
+  bool get isEmpty =>
+      schedule.isEmpty && menu.isEmpty && beverage.isEmpty && dietary.isEmpty;
 }
 
 /// What [content] says about [day]. A line that starts with a day ("Thu Nov 5: …") belongs to
-/// that day, along with the "- " bullets under it. Lines that name no day apply to the whole
-/// event: in a one-day event they all count; otherwise the menu, beverage and dietary ones show
-/// on days that have something scheduled, and the schedule shows only that day's lines.
+/// that day, with the "- " bullets under it; under a day heading ("Thu Nov 5:", "Thu Nov 5
+/// (invoice #46)") every line up to the next day or a blank line belongs to that day. Lines that
+/// name no day apply to the whole event: in a one-day event they all count; otherwise the menu,
+/// beverage and dietary ones show on days that have something scheduled, and the schedule shows
+/// only that day's lines.
 BeoDay beoDay(BeoContent content, DateTime day, List<DateTime> eventDays) {
   final oneDay = eventDays.length == 1 && eventDays.first == day;
   final schedule = _linesOn(content.timeline, day, eventDays, undated: oneDay);
@@ -42,19 +45,26 @@ List<String> _linesOn(
   required bool undated,
 }) {
   final lines = <String>[];
-  // Whether the block a "- " bullet sits under applies to [day]. Bullets before any heading
-  // name no day.
-  var blockApplies = undated;
+  // Whether a "- " bullet applies to [day]: bullets follow the line above them. Bullets before
+  // any heading name no day.
+  var bulletApplies = undated;
+  // Whether a plain line applies to [day] while under a day heading; null outside one.
+  bool? headingApplies;
   for (final raw in text.split('\n')) {
     final line = raw.trim();
-    if (line.isEmpty) continue;
+    if (line.isEmpty) {
+      headingApplies = null;
+      bulletApplies = undated;
+      continue;
+    }
     final bool applies;
     if (line.startsWith('- ')) {
-      applies = blockApplies;
+      applies = bulletApplies;
     } else if (startsWithServiceDay(line)) {
-      applies = blockApplies = leadingServiceDay(line, eventDays) == day;
+      applies = bulletApplies = leadingServiceDay(line, eventDays) == day;
+      headingApplies = isServiceDayHeading(line) ? applies : null;
     } else {
-      applies = blockApplies = undated;
+      applies = bulletApplies = headingApplies ?? undated;
     }
     if (applies) lines.add(line);
   }
