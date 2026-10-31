@@ -126,6 +126,7 @@ class _Board extends ConsumerWidget {
     final suites = ref.watch(suitesProvider(eventId));
     final beoAssignments = ref.watch(beoAssignmentIdsProvider(eventId));
     final day = ref.watch(selectedServiceDayProvider(eventId));
+    final inUse = ref.watch(dayAssignmentIdsProvider(eventId));
     // Stripes come from the orders and the BEO; without them the board would read as no BEO.
     final marksFailed =
         ref.watch(suiteOrdersProvider(eventId)).hasError ||
@@ -142,7 +143,10 @@ class _Board extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(vertical: 16),
         child: Text(error.toString(), style: AppText.body),
       ),
-      data: (items) {
+      data: (booked) {
+        final items = inUse == null
+            ? booked
+            : booked.where((s) => inUse.contains(s.id)).toList();
         final summary = suiteSummary(items);
         final tiles = items.where((s) => !_isClubOrFloor(s)).toList();
         final listed = items.where(_isClubOrFloor).toList();
@@ -154,9 +158,19 @@ class _Board extends ConsumerWidget {
               '${summary.ready} of ${summary.total} spaces ready · ${summary.notStarted} not started',
               style: AppText.body.copyWith(fontWeight: FontWeight.w600),
             ),
+            if (items.length < booked.length && day != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'Showing the ${items.length} of ${booked.length} booked spaces in use on ${serviceDayLabel(day)}.',
+                  style: AppText.meta,
+                ),
+              ),
             const SizedBox(height: 12),
-            if (items.isEmpty)
-              const EmptyNote('No spaces assigned to this event yet.'),
+            if (booked.isEmpty)
+              const EmptyNote('No spaces assigned to this event yet.')
+            else if (items.isEmpty && day != null)
+              EmptyNote('No spaces in use on ${serviceDayLabel(day)}.'),
             if (tiles.isNotEmpty) ...[
               GridView.builder(
                 shrinkWrap: true,

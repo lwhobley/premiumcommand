@@ -204,8 +204,12 @@ class _SuiteMapSectionState extends ConsumerState<SuiteMapSection> {
     if (!venueSuites.any((s) => _areaOf(s) != null)) {
       return const SizedBox.shrink();
     }
-    final assignments =
-        ref.watch(suitesProvider(widget.eventId)).value ?? const [];
+    final booked = ref.watch(suitesProvider(widget.eventId)).value ?? const [];
+    // On a day of a multi-day event, suites not in use that day show as unassigned.
+    final inUse = ref.watch(dayAssignmentIdsProvider(widget.eventId));
+    final assignments = inUse == null
+        ? booked
+        : booked.where((a) => inUse.contains(a.id)).toList();
     final orders =
         ref.watch(suiteOrdersProvider(widget.eventId)).value ?? const [];
     final statuses = suiteMapStatuses(assignments, orders);
@@ -242,7 +246,7 @@ class _SuiteMapSectionState extends ConsumerState<SuiteMapSection> {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    '${status.label} (${status == SuiteMapStatus.unassigned ? premiumLevelAreaCount - statuses.length : statuses.values.where((s) => s == status).length})',
+                    '${status == SuiteMapStatus.unassigned && inUse != null && day != null ? 'Not in use ${DateFormat('EEE MMM d').format(day)}' : status.label} (${status == SuiteMapStatus.unassigned ? premiumLevelAreaCount - statuses.length : statuses.values.where((s) => s == status).length})',
                     style: AppText.meta,
                   ),
                 ],

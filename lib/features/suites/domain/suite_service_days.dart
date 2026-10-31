@@ -1,4 +1,5 @@
 import '../../../core/time/venue_time.dart';
+import 'suite.dart';
 import 'suite_order.dart';
 
 /// The venue calendar days an event covers, first to last, as date-only values.
@@ -40,7 +41,11 @@ bool startsWithServiceDay(String text) => _dayPrefix.hasMatch(text.trim());
 /// outside the event.
 DateTime? leadingServiceDay(String text, List<DateTime> eventDays) {
   final match = _dayPrefix.firstMatch(text.trim());
-  if (match == null) return null;
+  return match == null ? null : _eventDay(match, eventDays);
+}
+
+/// The event day a weekday-month-day match ("Fri Oct 30") names, or null when it is outside the event.
+DateTime? _eventDay(RegExpMatch match, List<DateTime> eventDays) {
   final month = _months.indexOf(match.group(1)!.toLowerCase()) + 1;
   final dayOfMonth = int.parse(match.group(2)!);
   return eventDays
@@ -65,6 +70,41 @@ Set<DateTime> orderServiceDays(
     for (final item in order.items) ?leadingServiceDay(item.name, eventDays),
     if (deliverAt != null) _dateOf(atVenue(deliverAt, timeZone)),
   }.where(eventDays.contains).toSet();
+}
+
+/// A day named anywhere in a line: "occupied Wed Oct 28 and Fri Oct 30".
+final _dayMention = RegExp(
+  r'\b(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?,?\s+([a-z]{3})[a-z]*\.?\s+(\d{1,2})\b',
+  caseSensitive: false,
+);
+
+/// The event days [text] names anywhere in it.
+Set<DateTime> namedServiceDays(String text, List<DateTime> eventDays) => {
+  for (final match in _dayMention.allMatches(text))
+    ?_eventDay(match, eventDays),
+};
+
+/// Suites in use on [day]: those whose notes name that day, those whose notes name no day of
+/// the event (booked for all of it), and those with a BEO that day ([beoAssignmentIds]).
+Set<String> assignmentsInUseOn(
+  DateTime day,
+  List<SuiteAssignment> assignments,
+  List<DateTime> eventDays,
+  Set<String> beoAssignmentIds,
+) {
+  bool inUse(SuiteAssignment a) {
+    if (beoAssignmentIds.contains(a.id)) return true;
+    final days = namedServiceDays(
+      '${a.specialInstructions}\n${a.guestContact}',
+      eventDays,
+    );
+    return days.isEmpty || days.contains(day);
+  }
+
+  return {
+    for (final a in assignments)
+      if (inUse(a)) a.id,
+  };
 }
 
 /// Suite numbers named after "Suite" or "Suites": "Party Suite 228/229", "Suites 201, 202".
