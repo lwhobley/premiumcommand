@@ -81,7 +81,7 @@ enum StaffStatus {
 
 // The same rules the edge functions and database enforce (supabase/functions/_shared/staff_pin.ts).
 final _employeeIdPattern = RegExp(r'^[A-Z0-9-]{3,20}$');
-final _pinPattern = RegExp(r'^[0-9]{4}$');
+final _pinPattern = RegExp(r'^[0-9]{4,5}$');
 const _weakPins = {
   '0000',
   '1111',
@@ -94,6 +94,9 @@ const _weakPins = {
   '8888',
   '9999', //
   '1234', '4321', '1212', '2580',
+  '00000', '11111', '22222', '33333', '44444', '55555', '66666', '77777',
+  '88888', '99999', //
+  '12345', '54321', '01234', '43210',
 };
 
 String normalizeEmployeeId(String input) => input.trim().toUpperCase();

@@ -406,8 +406,7 @@ class _PinDialogState extends State<_PinDialog> {
   void _save() {
     if (!isValidPin(_pin.text)) {
       return setState(
-        () => _error =
-            'PIN must be 4 digits and not an obvious pattern such as 1234.',
+        () => _error = 'PIN must be 4 or 5 digits and not an obvious pattern such as 1234.',
       );
     }
     Navigator.of(context).pop(_pin.text);
@@ -424,9 +423,9 @@ class _PinDialogState extends State<_PinDialog> {
             controller: _pin,
             keyboardType: TextInputType.number,
             obscureText: true,
-            maxLength: 4,
+            maxLength: 5,
             decoration: InputDecoration(
-              labelText: 'New PIN (4 digits)',
+              labelText: 'New PIN (4 or 5 digits)',
               suffixIcon: IconButton(
                 tooltip: 'Generate a PIN',
                 icon: const PhosphorIcon(PhosphorIconsDuotone.arrowsClockwise),

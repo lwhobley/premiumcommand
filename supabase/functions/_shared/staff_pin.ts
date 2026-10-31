@@ -7,9 +7,11 @@
 
 const encoder = new TextEncoder();
 
-// Four digits with an obvious pattern are easy to guess, so they are refused.
-const WEAK_PINS = new Set(["0000", "1111", "2222", "3333", "4444", "5555", "6666", "7777",
-  "8888", "9999", "1234", "4321", "1212", "2580"]);
+// A PIN is 4 or 5 digits. Obvious patterns are easy to guess, so they are refused.
+const WEAK_PINS = new Set([
+  ...[..."0123456789"].flatMap((d) => [d.repeat(4), d.repeat(5)]),
+  "1234", "4321", "1212", "2580", "12345", "54321", "01234", "43210",
+]);
 
 // Failed PIN sign-ins allowed before a lock, and how long the lock lasts.
 // A device is one install of the app. Addresses are shared by everyone on one network,
@@ -19,7 +21,7 @@ export const ADDRESS_MAX_FAILURES = 30;
 export const LOCK_MINUTES = 15;
 
 export function isValidPin(pin: unknown): pin is string {
-  return typeof pin === "string" && /^[0-9]{4}$/.test(pin) && !WEAK_PINS.has(pin);
+  return typeof pin === "string" && /^[0-9]{4,5}$/.test(pin) && !WEAK_PINS.has(pin);
 }
 
 export function isValidEmployeeId(id: unknown): id is string {

@@ -31,17 +31,21 @@ Map<String, dynamic> _row({
 
 void main() {
   group('PIN rules', () {
-    test('accepts four digits', () {
+    test('accepts four or five digits', () {
       expect(isValidPin('4821'), isTrue);
       expect(isValidPin('0072'), isTrue);
+      expect(isValidPin('68389'), isTrue);
+      expect(isValidPin('04511'), isTrue);
     });
 
     test('rejects wrong length, letters, and obvious patterns', () {
       expect(isValidPin('482'), isFalse);
-      expect(isValidPin('48210'), isFalse);
+      expect(isValidPin('482101'), isFalse);
       expect(isValidPin('48a1'), isFalse);
       expect(isValidPin('1234'), isFalse);
       expect(isValidPin('7777'), isFalse);
+      expect(isValidPin('12345'), isFalse);
+      expect(isValidPin('55555'), isFalse);
     });
 
     test('generated PINs always pass validation', () {
