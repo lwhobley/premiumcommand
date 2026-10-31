@@ -64,3 +64,22 @@ final beoAssignmentIdsProvider = Provider.family<Set<String>, String>((
       if (named.contains(a.planArea)) a.id,
   };
 });
+
+/// Suite assignments in use on the selected day of a multi-day event, or null when there is
+/// nothing to filter (a one-day event, or no day yet): suites booked for particular shows show
+/// only on those days.
+final dayAssignmentIdsProvider = Provider.family<Set<String>?, String>((
+  ref,
+  eventId,
+) {
+  final days = ref.watch(eventServiceDaysProvider(eventId));
+  final day = ref.watch(selectedServiceDayProvider(eventId));
+  if (day == null || days.length < 2) return null;
+  final assignments = ref.watch(suitesProvider(eventId)).value ?? const [];
+  return assignmentsInUseOn(
+    day,
+    assignments,
+    days,
+    ref.watch(beoAssignmentIdsProvider(eventId)),
+  );
+});

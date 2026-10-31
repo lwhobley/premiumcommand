@@ -28,16 +28,18 @@ SuiteOrder _order(
   deliverAt: deliverAt,
 );
 
-SuiteAssignment _assignment(String id, String suiteName) => SuiteAssignment(
-  id: id,
-  eventId: 'event',
-  suiteId: 'suite-$id',
-  suiteName: suiteName,
-  location: '',
-  serviceZone: '',
-  state: SuiteState.notStarted,
-  version: 1,
-);
+SuiteAssignment _assignment(String id, String suiteName, {String notes = ''}) =>
+    SuiteAssignment(
+      id: id,
+      eventId: 'event',
+      suiteId: 'suite-$id',
+      suiteName: suiteName,
+      location: '',
+      serviceZone: '',
+      state: SuiteState.notStarted,
+      version: 1,
+      specialInstructions: notes,
+    );
 
 void main() {
   // League of Legends Worlds 2026: Quarterfinals, Nov 3 12:00 to Nov 6 23:00 at the venue.
@@ -213,6 +215,50 @@ void main() {
     expect(
       beoTimelineSuites('Suite 201 host', DateTime(2026, 11, 3), quarterfinals),
       isEmpty,
+    );
+  });
+
+  test('a suite shows on the days its notes name, or every day if none', () {
+    final disney = [for (var d = 24; d <= 29; d++) DateTime(2026, 11, d)];
+    final suites = [
+      _assignment(
+        'a201',
+        'Suite 201',
+        notes: 'Shows:\nWed Nov 25 7:00 PM: ADA - Vet Tix Relocation',
+      ),
+      _assignment(
+        'a228',
+        'Suite 228',
+        notes: 'Shows:\nWed Nov 25 7:00 PM: Prieto Party\nSat Nov 28 1:00 PM: Berry Family',
+      ),
+      _assignment('a229', 'Suite 229', notes: 'Shares the order on Suite 228.'),
+      _assignment(
+        'a203',
+        'Suite 203',
+        notes: 'Sat Nov 28 5:00 PM: Perez Family',
+      ),
+    ];
+    expect(assignmentsInUseOn(DateTime(2026, 11, 25), suites, disney, {}), {
+      'a201',
+      'a228',
+      'a229',
+    });
+    expect(assignmentsInUseOn(DateTime(2026, 11, 28), suites, disney, {}), {
+      'a228',
+      'a229',
+      'a203',
+    });
+    // A BEO that day shows the suite even when its notes name other days.
+    expect(
+      assignmentsInUseOn(DateTime(2026, 11, 26), suites, disney, {'a201'}),
+      {'a201', 'a229'},
+    );
+    // Days named mid-sentence count too.
+    expect(
+      namedServiceDays('Swiss Stage: occupied Wed Oct 28 and Fri Oct 30.', [
+        for (var d = 23; d <= 31; d++) DateTime(2026, 10, d),
+      ]),
+      {DateTime(2026, 10, 28), DateTime(2026, 10, 30)},
     );
   });
 
