@@ -1,4 +1,4 @@
-// Staff PIN-only sign-in. Takes a 4-digit PIN and this install's device ID. When the PIN matches
+// Staff PIN-only sign-in. Takes a 4- or 5-digit PIN and this install's device ID. When the PIN matches
 // an active staff account, it returns a one-time token hash that the app exchanges for a session.
 //
 // Attempts are limited per device and per network address, not per account, because a PIN alone
@@ -47,10 +47,10 @@ Deno.serve(async (req) => {
   try {
     body = await req.json();
   } catch {
-    return json({ error: "Enter your 4-digit PIN." }, 400);
+    return json({ error: "Enter your PIN." }, 400);
   }
   const pin = typeof body.pin === "string" ? body.pin : "";
-  if (!isValidPin(pin)) return json({ error: "Enter your 4-digit PIN." }, 400);
+  if (!isValidPin(pin)) return json({ error: "Enter your PIN." }, 400);
   if (!isValidDeviceId(body.device_id)) {
     return json({ error: "This device could not be identified. Update the app and try again." }, 400);
   }

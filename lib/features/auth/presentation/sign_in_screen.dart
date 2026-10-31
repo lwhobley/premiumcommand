@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -51,8 +53,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     try {
       final notifier = ref.read(sessionProvider.notifier);
       if (_mode == _SignInMode.staffPin) {
-        if (_pin.text.length != 4) {
-          throw const AppFailure('Enter your 4-digit PIN.');
+        if (_pin.text.length < 4) {
+          throw const AppFailure('Enter your PIN.');
         }
         await notifier.signInWithPin(pin: _pin.text);
       } else {
@@ -75,7 +77,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   }
 
   void _pressDigit(String digit) {
-    if (_busy || _pin.text.length >= 4) return;
+    if (_busy || _pin.text.length >= 5) return;
     setState(() {
       _pin.text += digit;
       _error = null;
@@ -264,7 +266,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   }
 }
 
-/// Four dots, filled for each digit entered.
+/// A dot for each digit, four to start and a fifth once it is typed (PINs are 4 or 5 digits).
 class _PinDots extends StatelessWidget {
   const _PinDots({required this.length});
 
@@ -273,10 +275,10 @@ class _PinDots extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: 'PIN, $length of 4 digits entered',
+      label: 'PIN, $length digits entered',
       child: Row(
         children: [
-          for (var i = 0; i < 4; i++) ...[
+          for (var i = 0; i < max(4, length); i++) ...[
             if (i > 0) const SizedBox(width: 14),
             Container(
               width: 14,

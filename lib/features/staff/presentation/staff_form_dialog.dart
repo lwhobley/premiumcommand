@@ -110,8 +110,7 @@ class _StaffFormDialogState extends State<_StaffFormDialog> {
       }
       if (!isValidPin(_pin.text)) {
         return setState(
-          () => _error =
-              'PIN must be 4 digits and not an obvious pattern such as 1234.',
+          () => _error = 'PIN must be 4 or 5 digits and not an obvious pattern such as 1234.',
         );
       }
     }
@@ -251,9 +250,9 @@ class _StaffFormDialogState extends State<_StaffFormDialog> {
                   controller: _pin,
                   keyboardType: TextInputType.number,
                   obscureText: true,
-                  maxLength: 4,
+                  maxLength: 5,
                   decoration: InputDecoration(
-                    labelText: 'PIN (4 digits)',
+                    labelText: 'PIN (4 or 5 digits)',
                     helperText: 'Must be unique across all staff. Shown once after saving.',
                     suffixIcon: IconButton(
                       tooltip: 'Generate a PIN',

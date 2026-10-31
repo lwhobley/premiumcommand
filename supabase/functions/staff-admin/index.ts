@@ -101,7 +101,7 @@ async function createStaff(user: SupabaseClient, admin: SupabaseClient, body: Bo
     return json({ error: "Employee ID must be 3 to 20 letters, digits, or hyphens." }, 400);
   }
   if (!isValidPin(body.pin)) {
-    return json({ error: "PIN must be 4 digits and not an obvious pattern such as 1234." }, 400);
+    return json({ error: "PIN must be 4 or 5 digits and not an obvious pattern such as 1234." }, 400);
   }
   if (!Array.isArray(body.roles) || body.roles.length === 0 ||
       !body.roles.every((r) => typeof r === "string" && ROLE_CODES.includes(r))) {
@@ -145,7 +145,7 @@ async function createStaff(user: SupabaseClient, admin: SupabaseClient, body: Bo
 async function setPin(user: SupabaseClient, body: Body): Promise<Response> {
   if (typeof body.profile_id !== "string") return json({ error: "Choose a staff member." }, 400);
   if (!isValidPin(body.pin)) {
-    return json({ error: "PIN must be 4 digits and not an obvious pattern such as 1234." }, 400);
+    return json({ error: "PIN must be 4 or 5 digits and not an obvious pattern such as 1234." }, 400);
   }
 
   const fingerprint = await pinFingerprint(body.pin);

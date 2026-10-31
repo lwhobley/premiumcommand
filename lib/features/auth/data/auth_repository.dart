@@ -17,7 +17,7 @@ abstract interface class AuthRepository {
     required String password,
   });
 
-  /// Staff sign-in with a 4-digit PIN, checked by the staff-login edge function.
+  /// Staff sign-in with a 4- or 5-digit PIN, checked by the staff-login edge function.
   Future<AppSession> signInWithPin({required String pin});
 
   Future<void> signOut();
