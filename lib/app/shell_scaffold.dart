@@ -7,6 +7,7 @@ import '../core/icons/phosphor.dart';
 import '../core/theme/app_theme.dart';
 import '../features/auth/application/session_controller.dart';
 import '../features/dispatch/application/dispatch_providers.dart';
+import '../features/guest_service/application/guest_service_providers.dart';
 import '../features/sync/presentation/sync_banner.dart';
 import 'app_section.dart';
 
@@ -29,6 +30,8 @@ class ShellScaffold extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(sessionProvider);
     if (session == null) return child;
+    // Keeps runner location sharing running on every screen, not only the guest service desk.
+    ref.watch(runnerLocationSharingProvider);
 
     final location = GoRouterState.of(context).uri.path;
     final visible = AppSection.values

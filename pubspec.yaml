@@ -49,6 +49,7 @@ dependencies:
   webview_flutter: ^4.14.1
   file_picker: ^13.1.0
   phosphor_flutter: ^2.1.0
+  geolocator: ^14.0.1
 
 dev_dependencies:
   flutter_test:
