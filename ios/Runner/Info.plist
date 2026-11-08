@@ -68,6 +68,8 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Shares your location with the service desk while you have a request in progress.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

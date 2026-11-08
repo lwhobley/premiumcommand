@@ -16,6 +16,7 @@ import '../features/staffing/presentation/staff_screen.dart';
 import '../features/suites/presentation/premium_spaces_screen.dart';
 import '../features/sales/presentation/sales_screen.dart';
 import '../features/dispatch/presentation/my_shift_screen.dart';
+import '../features/guest_service/presentation/guest_service_screen.dart';
 import '../features/events/presentation/event_calendar_screen.dart';
 import '../features/events/presentation/event_list_screen.dart';
 import '../features/floor_plan/presentation/floor_plan_studio_screen.dart';
@@ -94,6 +95,13 @@ enum AppSection {
     label: 'My Shift',
     icon: PhosphorIconsDuotone.identificationBadge,
     permission: null,
+    phase: 2,
+  ),
+  guestService(
+    path: '/guest-service',
+    label: 'Guest Service',
+    icon: PhosphorIconsDuotone.bellSimpleRinging,
+    permission: AppPermission.manageRequests,
     phase: 2,
   ),
   inspections(
@@ -196,6 +204,7 @@ enum AppSection {
       AppSection.eventWorkspace => const EventListScreen(),
       AppSection.liveDispatch => const DispatchScreen(),
       AppSection.myShift => const MyShiftScreen(),
+      AppSection.guestService => const GuestServiceScreen(),
       AppSection.beoManagement => const BeoScreen(),
       AppSection.premiumSpaces => const PremiumSpacesScreen(),
       AppSection.sales => const SalesScreen(),
