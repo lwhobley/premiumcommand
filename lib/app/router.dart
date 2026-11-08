@@ -22,9 +22,8 @@ const _homePath = '/my-shift';
 
 /// The Command Center is the main screen for anyone who can see operations. Everyone else
 /// starts on My Shift.
-String _homeFor(AppSession session) => session.can(AppPermission.viewOperations)
-    ? AppSection.commandCenter.path
-    : _homePath;
+String _homeFor(AppSession session) =>
+    session.can(AppPermission.viewOperations) ? AppSection.commandCenter.path : _homePath;
 
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = ValueNotifier<int>(0);
